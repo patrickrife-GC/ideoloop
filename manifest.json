@@ -1,0 +1,21 @@
+{
+  "name": "Ideoloop",
+  "short_name": "Ideoloop",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#82ba90",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/google-fonts/noto-emoji/main/png/512/emoji_u26a1.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/google-fonts/noto-emoji/main/png/128/emoji_u26a1.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ]
+}

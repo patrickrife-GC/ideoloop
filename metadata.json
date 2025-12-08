@@ -1,0 +1,7 @@
+{
+  "name": "Ideoloop",
+  "description": "AI-powered conversation platform that transforms interviews into finished social media content using Gemini 2.5.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
