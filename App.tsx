@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, getRedirectResult } from "firebase/auth";
 import { auth } from "./services/firebase";
 import { AppView, GeneratedResult, InterviewStyle, UserProfile, SessionRecord, AiModel } from './types';
 import { Hero } from './components/Hero';
@@ -21,7 +21,6 @@ function App() {
   const [interviewStyle, setInterviewStyle] = useState<InterviewStyle>('WIN_OF_WEEK');
   const [interviewTopic, setInterviewTopic] = useState<string>('');
   
-  // Progressive State
   const [generatedResult, setGeneratedResult] = useState<GeneratedResult | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
@@ -30,71 +29,83 @@ function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
-  // Modal State
   const [isPricingOpen, setIsPricingOpen] = useState(false);
 
-  // Listen for Firebase Auth changes
+  // ---------------------------
+  // 🔥 MAIN AUTH / REDIRECT LOGIC
+  // ---------------------------
   useEffect(() => {
     console.log("App mounted, initializing auth listener...");
-    const timeout = setTimeout(() => {
-        if (isAuthChecking) {
-            console.warn("Auth check timed out. Defaulting to Landing.");
-            setIsAuthChecking(false);
-        }
-    }, 8000); // Increased timeout for async cloud fetch
 
+    // Always start in "checking" mode so we don't flash Landing too early
+    setIsAuthChecking(true);
+
+    // 1️⃣ Handle Google redirect callback (after signInWithRedirect)
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          console.log("Google redirect success:", result.user);
+          handleLoginSuccess(result.user);
+        }
+      })
+      .catch((err) => console.error("Google redirect error:", err));
+
+    // 2️⃣ Real-time Firebase auth listener
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log("Auth listener fired. User =", user);
+
       if (user) {
         try {
-            // ASYNC: Wait for cloud sync to finish before setting user
-            const profile = await storageService.syncFirebaseUser(user);
-            setCurrentUser(profile);
-            
-            // Only redirect if we are on an entry page
-            if (view === AppView.AUTH || view === AppView.LANDING) {
-                setView(AppView.WELCOME);
-            }
+          const profile = await storageService.syncFirebaseUser(user);
+          setCurrentUser(profile);
+
+          console.log("User authenticated → redirect to WELCOME");
+          setView(AppView.WELCOME);   // ⬅️ Always go to WELCOME when logged in
         } catch (e) {
-            console.error("Failed to sync user profile", e);
+          console.error("Failed to sync user profile", e);
         }
       }
+
+      // End loading mode AFTER Firebase responds (user or no user)
       setIsAuthChecking(false);
-      clearTimeout(timeout);
     });
 
     return () => {
-        clearTimeout(timeout);
-        unsubscribe();
+      unsubscribe();
     };
-  }, []); // Remove dependencies to avoid re-running
+  }, []);
 
+  // ---------------------------
+  // 🔥 LOGIN SUCCESS HANDLER
+  // ---------------------------
   const handleLoginSuccess = async (user: any) => {
-      setIsAuthChecking(true); // Show loading while fetching history
-      try {
-          // Attempt Cloud Sync
-          const profile = await storageService.syncFirebaseUser(user);
-          setCurrentUser(profile);
-          setView(AppView.WELCOME);
-      } catch(e) {
-          console.error("Login Sync Critical Failure", e);
-          // CRITICAL FAIL-SAFE:
-          // If the storage service crashes (e.g. imports are broken), we MUST still let the user in.
-          // Construct a temporary local profile so they are not blocked.
-          setCurrentUser({
-              id: user.uid || 'temp_user',
-              name: user.displayName || 'Creator',
-              email: user.email || '',
-              joinedAt: Date.now(),
-              history: [],
-              insights: [],
-              interactionCount: 0,
-              plan: 'FREE'
-          });
-          setView(AppView.WELCOME);
-      } finally {
-          setIsAuthChecking(false);
-      }
+    // This gets called from the redirect handler
+    setIsAuthChecking(false);
+
+    try {
+      const profile = await storageService.syncFirebaseUser(user);
+      setCurrentUser(profile);
+    } catch (e) {
+      console.warn("⚠️ Firestore sync failed. Using fallback profile.", e);
+
+      setCurrentUser({
+        id: user.uid,
+        name: user.displayName || "Creator",
+        email: user.email || "",
+        joinedAt: Date.now(),
+        history: [],
+        insights: [],
+        interactionCount: 0,
+        plan: "FREE",
+      });
+    }
+
+    setView(AppView.WELCOME);
   };
+
+  // ---------------------------
+  // Remaining App Logic
+  // ---------------------------
 
   const handleStartStudio = (style: InterviewStyle, topic?: string) => {
     setInterviewStyle(style);
@@ -110,26 +121,25 @@ function App() {
   };
 
   const updateLocalHistory = (updatedSession: SessionRecord) => {
-      if (!currentUser) return;
-      
-      const existingHistory = currentUser.history || [];
-      const index = existingHistory.findIndex(s => s.id === updatedSession.id);
-      
-      let newHistory;
-      if (index >= 0) {
-          newHistory = [...existingHistory];
-          newHistory[index] = updatedSession;
-      } else {
-          newHistory = [updatedSession, ...existingHistory];
-      }
-      
-      setCurrentUser({ ...currentUser, history: newHistory });
+    if (!currentUser) return;
+    
+    const existing = currentUser.history || [];
+    const index = existing.findIndex(s => s.id === updatedSession.id);
+    
+    let newHistory;
+    if (index >= 0) {
+      newHistory = [...existing];
+      newHistory[index] = updatedSession;
+    } else {
+      newHistory = [updatedSession, ...existing];
+    }
+    
+    setCurrentUser({ ...currentUser, history: newHistory });
   };
 
   const handleGenerate = async (modelTier: AiModel) => {
     if (!recordingBlob || !currentUser) return;
     
-    // IMMEDIATE NAVIGATION & FEEDBACK
     setGeneratedResult({}); 
     setIsLoadingText(true);
     setView(AppView.RESULTS);
@@ -137,97 +147,78 @@ function App() {
     let currentSessionId: string;
 
     try {
-        // STEP 1: CREATE PENDING SESSION (Prevents Data Loss)
-        const pendingSession = await storageService.createPendingSession(currentUser.id, interviewStyle);
-        currentSessionId = pendingSession.id;
-        setActiveSessionId(currentSessionId);
-        updateLocalHistory(pendingSession);
-    } catch (e) {
-        console.error("Failed to init session", e);
-        // Fallback ID if cloud write fails temporarily (will fail later, but keeps UI alive)
-        currentSessionId = crypto.randomUUID(); 
+      const pendingSession = await storageService.createPendingSession(currentUser.id, interviewStyle);
+      currentSessionId = pendingSession.id;
+      setActiveSessionId(currentSessionId);
+      updateLocalHistory(pendingSession);
+    } catch {
+      currentSessionId = crypto.randomUUID();
     }
 
-    // STEP 2: UPLOAD AUDIO (Async)
-    const uploadPromise = !currentUser.id.startsWith('guest_') 
-        ? storageService.uploadVideo(currentUser.id, recordingBlob)
-            .then(async (url) => {
-                console.log("Audio uploaded:", url);
-                setCurrentVideoUrl(url);
-                // Update Session with URL
-                const updated = await storageService.updateSession(currentUser.id, currentSessionId, { videoUrl: url });
-                updateLocalHistory(updated);
-                return url;
-            })
-            .catch(e => console.error("Upload failed", e))
-        : Promise.resolve(undefined);
-
-    // STEP 3: GENERATE TEXT (Gemini)
-    generateTextAssets(recordingBlob, interviewStyle, modelTier)
-        .then(async (textData) => {
-            // Render text immediately in UI
-            setGeneratedResult(prev => ({ ...prev, ...textData }));
-            setIsLoadingText(false);
-            
-            // Save Text Results to Cloud
-            let updated = await storageService.updateSession(currentUser.id, currentSessionId, {
-                transcription: textData.transcription,
-                socialAssets: textData.socialAssets,
-                insights: textData.newInsights || []
-            });
+    const uploadPromise = !currentUser.id.startsWith('guest_')
+      ? storageService.uploadVideo(currentUser.id, recordingBlob)
+          .then(async (url) => {
+            setCurrentVideoUrl(url);
+            const updated = await storageService.updateSession(currentUser.id, currentSessionId, { videoUrl: url });
             updateLocalHistory(updated);
+            return url;
+          })
+      : Promise.resolve(undefined);
 
-            // STEP 4: GENERATE IMAGES (Chained)
-            if (textData.socialAssets) {
-               console.log("Starting Image Generation...");
-               try {
-                  const assetsWithImages = await generateSocialImages(textData.socialAssets);
-                  
-                  // Update UI
-                  const completeData = { ...textData, socialAssets: assetsWithImages };
-                  setGeneratedResult(prev => ({ ...prev, ...completeData }));
-                  
-                  // Save Images to Cloud
-                  updated = await storageService.updateSession(currentUser.id, currentSessionId, {
-                      socialAssets: assetsWithImages
-                  });
-                  updateLocalHistory(updated);
-               } catch (e) {
-                  console.error("Image gen failed", e);
-               }
-            }
-        })
-        .catch(err => {
-            console.error("Text Gen Failed", err);
-            setIsLoadingText(false);
-            alert("Failed to generate content. Please try again.");
+    generateTextAssets(recordingBlob, interviewStyle, modelTier)
+      .then(async (textData) => {
+        setGeneratedResult(prev => ({ ...prev, ...textData }));
+        setIsLoadingText(false);
+
+        let updated = await storageService.updateSession(currentUser.id, currentSessionId, {
+          transcription: textData.transcription,
+          socialAssets: textData.socialAssets,
+          insights: textData.newInsights || []
         });
+        updateLocalHistory(updated);
+
+        if (textData.socialAssets) {
+          const assetsWithImages = await generateSocialImages(textData.socialAssets);
+          const complete = { ...textData, socialAssets: assetsWithImages };
+
+          setGeneratedResult(prev => ({ ...prev, ...complete }));
+
+          updated = await storageService.updateSession(currentUser.id, currentSessionId, {
+            socialAssets: assetsWithImages
+          });
+          updateLocalHistory(updated);
+        }
+      })
+      .catch(() => {
+        setIsLoadingText(false);
+        alert("Failed to generate content. Please try again.");
+      });
   };
 
   const handleViewSession = (session: SessionRecord) => {
-      setGeneratedResult({
-          transcription: session.transcription,
-          socialAssets: session.socialAssets,
-          newInsights: session.insights
-      });
-      setRecordingBlob(null); // Clear local blob
-      setCurrentVideoUrl(session.videoUrl || null);
-      setActiveSessionId(session.id);
-      setView(AppView.RESULTS);
+    setGeneratedResult({
+      transcription: session.transcription,
+      socialAssets: session.socialAssets,
+      newInsights: session.insights
+    });
+    setRecordingBlob(null);
+    setCurrentVideoUrl(session.videoUrl || null);
+    setActiveSessionId(session.id);
+    setView(AppView.RESULTS);
   };
-  
+
   const handleUpgrade = () => {
-      alert("Billing integration coming soon! You will be redirected to Stripe.");
-      setIsPricingOpen(false);
+    alert("Billing integration coming soon! You will be redirected to Stripe.");
+    setIsPricingOpen(false);
   };
 
   if (isAuthChecking) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
-            <div className="w-10 h-10 border-4 border-[#82ba90] border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-gray-400 text-sm font-medium">Connecting to Ideoloop...</p>
-        </div>
-      );
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
+        <div className="w-10 h-10 border-4 border-[#82ba90] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-gray-400 text-sm font-medium">Connecting to Ideoloop...</p>
+      </div>
+    );
   }
 
   return (
@@ -240,46 +231,40 @@ function App() {
 
       {(() => {
         switch (view) {
-            case AppView.LANDING:
+          case AppView.LANDING:
             return <Hero onGetStarted={() => setView(AppView.AUTH)} onCreateCustom={() => setView(AppView.AUTH)} />;
-            case AppView.AUTH:
+          case AppView.AUTH:
             return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
-            case AppView.WELCOME:
+          case AppView.WELCOME:
             return <WelcomeScreen userName={currentUser?.name} onBegin={() => setView(AppView.GUIDE_INTRO)} onDashboard={() => setView(AppView.DASHBOARD)} />;
-            case AppView.DASHBOARD:
-                return currentUser ? (
-                    <Dashboard 
-                        user={currentUser} 
-                        onBack={() => setView(AppView.WELCOME)} 
-                        onAdmin={() => setView(AppView.ADMIN)}
-                        onViewSession={handleViewSession} 
-                    />
-                ) : <AuthScreen onLoginSuccess={handleLoginSuccess} />;
-            case AppView.ADMIN:
-                return <AdminDashboard onBack={() => setView(AppView.DASHBOARD)} />;
-            case AppView.GUIDE_INTRO:
+          case AppView.DASHBOARD:
+            return currentUser ? (
+              <Dashboard 
+                user={currentUser} 
+                onBack={() => setView(AppView.WELCOME)} 
+                onAdmin={() => setView(AppView.ADMIN)}
+                onViewSession={handleViewSession} 
+              />
+            ) : <AuthScreen onLoginSuccess={handleLoginSuccess} />;
+          case AppView.ADMIN:
+            return <AdminDashboard onBack={() => setView(AppView.DASHBOARD)} />;
+          case AppView.GUIDE_INTRO:
             return <GuideIntro onStart={handleStartStudio} userPlan={currentUser?.plan} onOpenPricing={() => setIsPricingOpen(true)} />;
-            case AppView.STUDIO:
+          case AppView.STUDIO:
             return <Studio interviewStyle={interviewStyle} interviewTopic={interviewTopic} userProfile={currentUser} onFinish={handleFinishRecording} onCancel={() => setView(AppView.WELCOME)} />;
-            case AppView.SUMMARY:
+          case AppView.SUMMARY:
             return <SummaryScreen onGenerate={handleGenerate} />;
-            case AppView.PROCESSING:
-            return null;
-            case AppView.RESULTS:
-            // Allow viewing results if we have data, even if partial
-            if (generatedResult) {
-                return (
-                <Results 
-                    result={generatedResult} 
-                    recordings={recordingBlob ? { 'full_session': recordingBlob } : {}}
-                    videoUrl={currentVideoUrl || undefined}
-                    onRestart={() => setView(AppView.WELCOME)} 
-                    isLoadingText={isLoadingText}
-                />
-                );
-            }
-            return null;
-            default:
+          case AppView.RESULTS:
+            return generatedResult ? (
+              <Results 
+                result={generatedResult} 
+                recordings={recordingBlob ? { 'full_session': recordingBlob } : {}}
+                videoUrl={currentVideoUrl || undefined}
+                onRestart={() => setView(AppView.WELCOME)} 
+                isLoadingText={isLoadingText}
+              />
+            ) : null;
+          default:
             return <Hero onGetStarted={() => setView(AppView.AUTH)} onCreateCustom={() => setView(AppView.AUTH)} />;
         }
       })()}

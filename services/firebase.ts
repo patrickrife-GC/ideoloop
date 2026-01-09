@@ -1,23 +1,39 @@
-
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getStorage } from "firebase/storage";
-import { getFirestore } from "firebase/firestore";
+import { 
+  getAuth, 
+  GoogleAuthProvider 
+} from "firebase/auth";
+import { 
+  getFirestore 
+} from "firebase/firestore";
+import { 
+  getStorage 
+} from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDgwLHb6HPPeP-g6bxZ-BhxIuSvL3b7dyA",
-  authDomain: "ideoloop-53c27.firebaseapp.com",
-  projectId: "ideoloop-53c27",
-  storageBucket: "ideoloop-53c27.firebasestorage.app",
-  messagingSenderId: "906427095036",
-  appId: "1:906427095036:web:a3e242e764ccee0d408479"
+  apiKey: "AIzaSyBJN0Tgt8nc1LTCyNYSWmJ4XsPq1LKza18",
+  authDomain: "ideoloop-webapp.firebaseapp.com",
+  projectId: "ideoloop-webapp",
+  storageBucket: "ideoloop-webapp.appspot.com",
+  messagingSenderId: "259434637786",
+  appId: "1:259434637786:web:c0828d61cf830d4e49b8e3"
 };
 
-// Initialize Firebase (Modular)
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase
+export const app = initializeApp(firebaseConfig);
 
-// Export instances
+// Auth
 export const auth = getAuth(app);
+auth.useDeviceLanguage();
+
+// Google Provider
 export const googleProvider = new GoogleAuthProvider();
-export const storage = getStorage(app);
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
+
+// Firestore (needed for storageService)
 export const db = getFirestore(app);
+
+// Storage (your uploads expect this)
+export const storage = getStorage(app);

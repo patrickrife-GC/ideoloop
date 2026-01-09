@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
-import { signInWithPopup, signInAnonymously } from "firebase/auth";
+import React, { useState, useEffect } from 'react';
+import { 
+  signInWithRedirect,
+  getRedirectResult,
+  signInAnonymously 
+} from "firebase/auth";
 import { auth, googleProvider } from "../services/firebase";
 
 interface AuthScreenProps {
@@ -10,90 +14,106 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Force entry into the app no matter what happens with the network
+  // 🔥 When Google redirects back here, catch the signed-in user
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(result => {
+        if (result && result.user) {
+          console.log("Google redirect login success:", result.user);
+          onLoginSuccess(result.user);
+        }
+      })
+      .catch(err => {
+        console.error("Redirect login error:", err);
+      });
+  }, []);
+
+  // Used when auth completely fails
   const forceMockEntry = () => {
-     const guestUser = {
-        uid: 'guest_' + Math.random().toString(36).substr(2, 9),
-        displayName: 'Guest User',
-        email: 'guest@ideoloop.ai',
-        photoURL: null,
-        isAnonymous: true
-      };
-      onLoginSuccess(guestUser);
+    const guestUser = {
+      uid: 'guest_' + Math.random().toString(36).substr(2, 9),
+      displayName: 'Guest User',
+      email: 'guest@ideoloop.ai',
+      photoURL: null,
+      isAnonymous: true
+    };
+    onLoginSuccess(guestUser);
   };
 
   const handleGuestLogin = async () => {
-      setIsLoading(true);
-      try {
-          // Try real anonymous auth first (allows database writes if rules permit)
-          const result = await signInAnonymously(auth);
-          onLoginSuccess(result.user);
-      } catch (err) {
-          console.warn("Anonymous auth failed, using local mock.", err);
-          forceMockEntry();
-      }
+    setIsLoading(true);
+    try {
+      const result = await signInAnonymously(auth);
+      onLoginSuccess(result.user);
+    } catch (err) {
+      console.warn("Anonymous auth failed, using mock instead.", err);
+      forceMockEntry();
+    }
   };
 
+  // 🚀 Google login using redirect (required outside localhost)
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setError(null);
+
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      onLoginSuccess(result.user);
-    } catch (err: any) {
-      console.error("Login failed", err);
-      
-      // DIRECTOR LEVEL OVERRIDE:
-      // We know Google Auth fails on preview domains. 
-      // We do not want to show an error. We want to show the app.
-      // Automatically switch to guest mode instantly.
-      
-      setError("Preview environment detected. Switching to Guest Mode...");
+      await signInWithRedirect(auth, googleProvider);
+    } catch (err) {
+      console.error("Google redirect failed", err);
+      setError("Unable to authenticate. Switching to Guest Mode...");
       handleGuestLogin();
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-6 font-inter relative overflow-hidden">
-        {/* Decorative background blobs - matching Hero */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-7xl pointer-events-none opacity-20 blur-3xl z-0">
-          <div className="aspect-[1100/600] w-full bg-gradient-to-tr from-[#82ba90] to-[#a7f3d0]" style={{clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)'}}></div>
+
+      {/* Background graphic */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-7xl pointer-events-none opacity-20 blur-3xl z-0">
+        <div className="aspect-[1100/600] w-full bg-gradient-to-tr from-[#82ba90] to-[#a7f3d0]"
+             style={{clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)'}}>
         </div>
+      </div>
 
       <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20 relative z-50">
+
         <div className="text-center mb-10">
-           <div className="mx-auto w-12 h-12 bg-[#82ba90]/10 rounded-full flex items-center justify-center mb-4">
-                <span className="text-2xl">⚡️</span>
-           </div>
-           <h1 className="text-3xl font-bold text-gray-900 mb-3">Sign in to Ideoloop</h1>
-           <p className="text-gray-500">
-             Your creative studio awaits. Sign in to save your sessions and access your history.
-           </p>
+          <div className="mx-auto w-12 h-12 bg-[#82ba90]/10 rounded-full flex items-center justify-center mb-4">
+            <span className="text-2xl">⚡️</span>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">Sign in to Ideoloop</h1>
+          <p className="text-gray-500">
+            Your creative studio awaits. Sign in to save your sessions and access your history.
+          </p>
         </div>
 
         {error && (
-            <div className={`mb-6 p-4 text-sm rounded-lg border text-center shadow-sm ${error.includes('Switching') ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                <p className="font-bold mb-1 flex items-center justify-center gap-2">
-                   {error.includes('Switching') ? (
-                       <>
-                         <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                         Redirecting...
-                       </>
-                   ) : (
-                       <>Action Required</>
-                   )}
-                </p>
-                <p>{error}</p>
-            </div>
+          <div className={`mb-6 p-4 text-sm rounded-lg border text-center shadow-sm 
+            ${error.includes('Switching') 
+              ? 'bg-green-50 text-green-700 border-green-200' 
+              : 'bg-red-50 text-red-700 border-red-200'}`}>
+            <p className="font-bold mb-1 flex items-center justify-center gap-2">
+              {error.includes('Switching') ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                  Redirecting...
+                </>
+              ) : <>Action Required</>}
+            </p>
+            <p>{error}</p>
+          </div>
         )}
 
+        {/* Google Button */}
         <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className={`w-full bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 shadow-sm group mb-4 ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 hover:border-gray-300'}`}
+          className={`w-full bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-xl transition-all 
+            flex items-center justify-center gap-3 shadow-sm group mb-4 
+            ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 hover:border-gray-300'}`}
         >
           {isLoading ? (
-             <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
           ) : (
             <>
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -107,39 +127,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           )}
         </button>
 
-        <div className="relative">
-            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+        {/* Divider */}
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center">
+          </div>
+          <div className="relative flex justify-center">
             <span className="bg-white px-2 text-sm text-gray-500">or</span>
-            </div>
+          </div>
         </div>
 
-        <div className="mt-4">
-            <button
-                onClick={handleGuestLogin}
-                className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition-all shadow-lg hover:scale-[1.02] ring-4 ring-transparent focus:ring-[#82ba90]/30"
-            >
-                Start as Guest (No Login Required)
-            </button>
-            <p className="text-center text-xs text-gray-400 mt-2">
-                Instantly access the full studio. Recommended for preview.
-            </p>
-        </div>
-        
-        <div className="mt-8 text-center border-t border-gray-100 pt-6">
-           <p className="text-xs text-gray-400">
-             By continuing, you agree to our Terms of Service and Privacy Policy.
-           </p>
-        </div>
-        
-        {/* Mobile Reload Helper */}
-        <div className="mt-4 text-center">
-             <button onClick={() => window.location.reload()} className="text-[10px] text-gray-300 hover:text-gray-500 underline">
-                 Reload App (Clear Cache)
-             </button>
-        </div>
+        {/* Guest */}
+        <button
+          onClick={handleGuestLogin}
+          className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition-all shadow-lg"
+        >
+          Start as Guest (No Login Required)
+        </button>
+        <p className="text-center text-xs text-gray-400 mt-2">
+          Instantly access the full studio. Recommended for preview.
+        </p>
+
       </div>
     </div>
   );
