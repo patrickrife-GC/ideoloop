@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, getRedirectResult } from "firebase/auth";
-import { auth } from "./services/firebase";
+import { auth, authReady } from "./services/firebase";
 import { AppView, GeneratedResult, InterviewStyle, UserProfile, SessionRecord, AiModel } from './types';
 import { Hero } from './components/Hero';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -40,38 +40,46 @@ function App() {
     // Always start in "checking" mode so we don't flash Landing too early
     setIsAuthChecking(true);
 
-    // 1️⃣ Handle Google redirect callback (after signInWithRedirect)
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          console.log("Google redirect success:", result.user);
-          handleLoginSuccess(result.user);
+    let isMounted = true;
+    let unsubscribe: (() => void) | undefined;
+
+    authReady.then(() => {
+      if (!isMounted) return;
+
+      // 1️⃣ Handle Google redirect callback (after signInWithRedirect)
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result?.user) {
+            console.log("Google redirect success:", result.user);
+            handleLoginSuccess(result.user);
+          }
+        })
+        .catch((err) => console.error("Google redirect error:", err));
+
+      // 2️⃣ Real-time Firebase auth listener
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        console.log("Auth listener fired. User =", user);
+
+        if (user) {
+          try {
+            const profile = await storageService.syncFirebaseUser(user);
+            setCurrentUser(profile);
+
+            console.log("User authenticated → redirect to WELCOME");
+            setView(AppView.WELCOME);   // ⬅️ Always go to WELCOME when logged in
+          } catch (e) {
+            console.error("Failed to sync user profile", e);
+          }
         }
-      })
-      .catch((err) => console.error("Google redirect error:", err));
 
-    // 2️⃣ Real-time Firebase auth listener
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log("Auth listener fired. User =", user);
-
-      if (user) {
-        try {
-          const profile = await storageService.syncFirebaseUser(user);
-          setCurrentUser(profile);
-
-          console.log("User authenticated → redirect to WELCOME");
-          setView(AppView.WELCOME);   // ⬅️ Always go to WELCOME when logged in
-        } catch (e) {
-          console.error("Failed to sync user profile", e);
-        }
-      }
-
-      // End loading mode AFTER Firebase responds (user or no user)
-      setIsAuthChecking(false);
+        // End loading mode AFTER Firebase responds (user or no user)
+        setIsAuthChecking(false);
+      });
     });
 
     return () => {
-      unsubscribe();
+      isMounted = false;
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 
@@ -234,7 +242,7 @@ function App() {
           case AppView.LANDING:
             return <Hero onGetStarted={() => setView(AppView.AUTH)} onCreateCustom={() => setView(AppView.AUTH)} />;
           case AppView.AUTH:
-            return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
+            return <AuthScreen onLoginSuccess={handleLoginSuccess} authLoading={isAuthChecking} />;
           case AppView.WELCOME:
             return <WelcomeScreen userName={currentUser?.name} onBegin={() => setView(AppView.GUIDE_INTRO)} onDashboard={() => setView(AppView.DASHBOARD)} />;
           case AppView.DASHBOARD:
@@ -245,7 +253,7 @@ function App() {
                 onAdmin={() => setView(AppView.ADMIN)}
                 onViewSession={handleViewSession} 
               />
-            ) : <AuthScreen onLoginSuccess={handleLoginSuccess} />;
+            ) : <AuthScreen onLoginSuccess={handleLoginSuccess} authLoading={isAuthChecking} />;
           case AppView.ADMIN:
             return <AdminDashboard onBack={() => setView(AppView.DASHBOARD)} />;
           case AppView.GUIDE_INTRO:

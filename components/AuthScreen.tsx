@@ -1,32 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   signInWithRedirect,
-  getRedirectResult,
   signInAnonymously 
 } from "firebase/auth";
 import { auth, googleProvider } from "../services/firebase";
 
 interface AuthScreenProps {
   onLoginSuccess: (user: any) => void;
+  authLoading: boolean;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, authLoading }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 🔥 When Google redirects back here, catch the signed-in user
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(result => {
-        if (result && result.user) {
-          console.log("Google redirect login success:", result.user);
-          onLoginSuccess(result.user);
-        }
-      })
-      .catch(err => {
-        console.error("Redirect login error:", err);
-      });
-  }, []);
 
   // Used when auth completely fails
   const forceMockEntry = () => {
@@ -41,6 +27,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   };
 
   const handleGuestLogin = async () => {
+    if (authLoading) return;
     setIsLoading(true);
     try {
       const result = await signInAnonymously(auth);
@@ -53,6 +40,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
   // 🚀 Google login using redirect (required outside localhost)
   const handleGoogleLogin = async () => {
+    if (authLoading) return;
     setIsLoading(true);
     setError(null);
 
@@ -107,12 +95,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         {/* Google Button */}
         <button
           onClick={handleGoogleLogin}
-          disabled={isLoading}
+          disabled={isLoading || authLoading}
           className={`w-full bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-xl transition-all 
             flex items-center justify-center gap-3 shadow-sm group mb-4 
-            ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 hover:border-gray-300'}`}
+            ${(isLoading || authLoading) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 hover:border-gray-300'}`}
         >
-          {isLoading ? (
+          {(isLoading || authLoading) ? (
             <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
           ) : (
             <>
@@ -140,7 +128,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         {/* Guest */}
         <button
           onClick={handleGuestLogin}
-          className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition-all shadow-lg"
+          disabled={authLoading}
+          className={`w-full bg-gray-900 text-white font-bold py-4 rounded-xl transition-all shadow-lg ${
+            authLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800'
+          }`}
         >
           Start as Guest (No Login Required)
         </button>
