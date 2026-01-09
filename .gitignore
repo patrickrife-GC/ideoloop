@@ -1,1 +1,20 @@
-node_modules
+# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+
+# firebase local/cache
+.firebase/
+
+# env
+.env
+.env.local
+
+# mac
+.DS_Store
+# keys accidentally created
+C
+C.pub
+
