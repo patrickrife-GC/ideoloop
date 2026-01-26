@@ -67,7 +67,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onU
 
             {/* Pro Tier */}
             <div className="p-8 bg-white relative overflow-hidden flex flex-col h-full">
-                <div className="absolute top-0 right-0 bg-[#82ba90] text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                <div className="absolute top-0 right-0 bg-[#E67E50] text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
                     RECOMMENDED
                 </div>
                 <div className="mb-6">
@@ -80,25 +80,25 @@ export const PricingModal: React.FC<PricingModalProps> = ({ isOpen, onClose, onU
                 </div>
                 <ul className="space-y-4 mb-8 flex-1">
                     <li className="flex items-center gap-3 text-sm text-gray-700">
-                        <div className="bg-[#82ba90]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#82ba90]" /></div>
+                        <div className="bg-[#1f3a2e]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#1f3a2e]" /></div>
                         <strong>Unlimited</strong> Interviews
                     </li>
                     <li className="flex items-center gap-3 text-sm text-gray-700">
-                        <div className="bg-[#82ba90]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#82ba90]" /></div>
+                        <div className="bg-[#1f3a2e]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#1f3a2e]" /></div>
                         Access to <strong>Deep Dive Templates</strong>
                     </li>
                     <li className="flex items-center gap-3 text-sm text-gray-700">
-                        <div className="bg-[#82ba90]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#82ba90]" /></div>
+                        <div className="bg-[#1f3a2e]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#1f3a2e]" /></div>
                         <strong>Pro Ghostwriter</strong> (Gemini 3 Pro)
                     </li>
                     <li className="flex items-center gap-3 text-sm text-gray-700">
-                        <div className="bg-[#82ba90]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#82ba90]" /></div>
+                        <div className="bg-[#1f3a2e]/10 p-1 rounded-full"><CheckIcon className="w-3 h-3 text-[#1f3a2e]" /></div>
                         Viral Clip Analysis
                     </li>
                 </ul>
                 <button 
                     onClick={onUpgrade}
-                    className="w-full py-3 rounded-xl bg-[#82ba90] font-bold text-white shadow-lg hover:bg-[#6da87a] hover:scale-[1.02] transition-all"
+                    className="w-full py-3 rounded-xl bg-[#E67E50] font-bold text-white shadow-lg hover:bg-[#d06a42] hover:scale-[1.02] transition-all"
                 >
                     Upgrade to Pro
                 </button>

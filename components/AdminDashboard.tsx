@@ -72,12 +72,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden min-h-[500px]">
               <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                   <h3 className="font-bold text-gray-800">User Directory</h3>
-                  <button onClick={() => window.location.reload()} className="text-sm text-[#82ba90] font-semibold hover:underline">Refresh Data</button>
+                  <button onClick={() => window.location.reload()} className="text-sm text-[#6B9B7F] font-semibold hover:underline">Refresh Data</button>
               </div>
               
               {isLoading ? (
                   <div className="p-12 flex justify-center">
-                      <div className="w-8 h-8 border-4 border-[#82ba90] border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-8 h-8 border-4 border-[#1f3a2e] border-t-transparent rounded-full animate-spin"></div>
                   </div>
               ) : (
                   <div className="overflow-x-auto">

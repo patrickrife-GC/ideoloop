@@ -1,10 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { GeneratedResult, InterviewStyle, SocialContent, AiModel } from "../types";
+import { GeneratedResult, InterviewStyle, SocialContent, AiModel, VoiceProfile } from "../types";
+import { generateSocialContent } from "./claudeService";
 
 const getGeminiClient = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  console.log("🔑 Gemini API key present:", !!apiKey, "Length:", apiKey?.length);
   if (!apiKey) {
-    throw new Error("API_KEY is missing from environment variables.");
+    throw new Error("VITE_GEMINI_API_KEY is missing from environment variables.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -42,118 +44,143 @@ const getCleanMimeType = (blob: Blob) => {
     return fullMimeType.split(';')[0];
 };
 
-// 1. FAST TRACK: Transcribe & Write Text Content (+ Image Prompts)
-export const generateTextAssets = async (
-    mediaBlob: Blob,
+// Transcribe audio only (no content generation)
+// Gemini-based social content generation (fallback when Claude fails)
+const generateSocialContentWithGemini = async (
+    transcription: string,
     interviewStyle: InterviewStyle,
-    modelTier: AiModel = 'GEMINI_PRO'
-): Promise<GeneratedResult> => {
+    modelTier: AiModel,
+    voiceProfile?: VoiceProfile
+): Promise<SocialContent[]> => {
     const ai = getGeminiClient();
-    
-    // Select Model based on Tier
-    // GEMINI_PRO = gemini-3-pro-preview (High Reasoning, "Claude-Class")
-    // GEMINI_FLASH = gemini-2.5-flash (High Speed, Standard)
     const modelName = modelTier === 'GEMINI_PRO' ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
-    console.log(`Using Model: ${modelName}`);
 
-    // THE GHOSTWRITER PROTOCOL & PLATFORM PLAYBOOKS
-    const promptContext = `
-      You are Ideoloop, an elite ghostwriter for top business executives.
-      You have just conducted a "${interviewStyle}" audio interview.
-      
-      STEP 1: Transcribe the audio to a summary.
-      STEP 2: Write viral social media assets based on the transcript.
-      STEP 3: For each asset, write a "Visual Prompt" that describes an abstract, high-converting image to go with the post.
+    let voiceContext = '';
+    if (voiceProfile) {
+        voiceContext = `
+VOICE PROFILE CONTEXT:
+${voiceProfile.contrarianBelief ? `Contrarian belief: ${voiceProfile.contrarianBelief}` : ''}
+${voiceProfile.targetAudience ? `Target audience: ${voiceProfile.targetAudience}` : ''}
+${voiceProfile.coreLesson ? `Core lesson: ${voiceProfile.coreLesson}` : ''}
+${voiceProfile.currentGoal ? `Current goal: ${voiceProfile.currentGoal}` : ''}
+`;
+    }
 
-      *** GHOSTWRITER STYLE GUIDE ***
-      - Grade 5 Readability: Simple words. Punchy sentences.
-      - Active Voice: "I decided" not "A decision was made".
-      - No Fluff: Remove "I think", "In my opinion", "Basically".
-      
-      *** PLATFORM FORMATTING RULES (STRICT) ***
+    const prompt = `You are an elite ghostwriter for thought leaders. Transform this interview into viral social content.
 
-      A) LINKEDIN POST:
-         - STRUCTURE: "Broetry" style. One sentence per line. Double spacing between paragraphs.
-         - THE HOOK: Start with a contrarian statement or a hard number. No greeting.
-         - BODY: Short, punchy lines. Use bullet points (•) for lists.
-         - CTA: End with a specific question.
-         - HASHTAGS: Exactly 3 relevant hashtags at the very bottom.
-         - IMAGE PROMPT: Describe a minimal, professional illustration or abstract concept (1:1 aspect ratio).
-      
-      B) TWEET THREAD:
-         - FORMAT: A series of tweets separated by double newlines.
-         - TWEET 1 (The Hook): Under 280 chars. Must stop the scroll. No hashtags.
-         - TWEET 2-N (The Meat): deliver the value. Use "1/", "2/" numbering.
-         - FINAL TWEET: A summary + "Follow for more".
-         - IMAGE PROMPT: Describe a simple chart, graph, or bold visual metaphor (16:9 aspect ratio).
-      
-      C) VIDEO HOOK SCRIPT:
-         - FORMAT: Visual direction in [brackets], spoken audio in quotes.
-         - STYLE: High energy, fast paced. Max 10 seconds of script.
-         - IMAGE PROMPT: Describe a thumbnail image.
-         
-      D) BLOG POST INTRO:
-         - STYLE: Narrative storytelling. Start *in media res* (in the middle of the action).
-         - SEO: Include keywords naturally.
-         - IMAGE PROMPT: Describe a cinematic, high-quality editorial header image (16:9 aspect ratio).
+${voiceContext}
 
-      Focus ONLY on the audio content.
-    `;
+TRANSCRIPT:
+${transcription}
+
+Generate 4 social media assets as a JSON array:
+
+1. LinkedIn Post (Broetry):
+- One sentence per line
+- Hook with contrarian statement
+- Bullet points with •
+- End with specific question
+- 3 hashtags
+
+2. Tweet Thread (5-7 tweets):
+- First tweet: hook under 280 chars
+- Numbered tweets (1/, 2/)
+- Final: summary + "Follow for more"
+
+3. Video Hook (10 seconds):
+- [Visual directions] in brackets
+- Spoken audio in quotes
+- High energy
+
+4. Blog Post Intro (2-3 paragraphs):
+- Start in media res
+- Narrative storytelling
+
+Return ONLY valid JSON array with this structure:
+[{"type":"LinkedIn Post","content":"...","hashtags":["..."],"imagePrompt":"..."},{"type":"Tweet Thread","content":"...","imagePrompt":"..."},{"type":"Video Hook","content":"...","imagePrompt":"..."},{"type":"Blog Post Intro","content":"...","imagePrompt":"..."}]`;
+
+    const response = await ai.models.generateContent({
+        model: modelName,
+        contents: { parts: [{ text: prompt }] },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from Gemini");
+
+    const cleanJson = text.trim().replace(/^```json?\s*/, '').replace(/```\s*$/, '').trim();
+    const socialAssets = JSON.parse(cleanJson) as SocialContent[];
+
+    // Add attribution
+    return socialAssets.map(asset => ({ ...asset, generatedBy: 'Gemini' as const }));
+};
+
+export const transcribeAudio = async (
+    mediaBlob: Blob,
+    modelTier: AiModel = 'GEMINI_PRO'
+): Promise<string> => {
+    const ai = getGeminiClient();
+    const modelName = modelTier === 'GEMINI_PRO' ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
 
     try {
         const base64Data = await blobToBase64(mediaBlob);
         const mimeType = getCleanMimeType(mediaBlob);
 
-        const responseSchema = {
-            type: Type.OBJECT,
-            properties: {
-              transcription: { type: Type.STRING },
-              socialAssets: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    type: {
-                      type: Type.STRING,
-                      enum: ['Tweet Thread', 'Blog Post Intro', 'LinkedIn Post', 'Video Hook'],
-                    },
-                    content: { 
-                        type: Type.STRING,
-                        description: "The formatted content string. Use \\n\\n for line breaks."
-                    },
-                    hashtags: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    imagePrompt: {
-                        type: Type.STRING,
-                        description: "A detailed prompt for an AI image generator to create a relevant visual."
-                    }
-                  },
-                  required: ['type', 'content', 'imagePrompt'],
-                },
-              },
-            },
-            required: ['transcription', 'socialAssets'],
-        };
-
         const response = await ai.models.generateContent({
             model: modelName,
             contents: {
                 parts: [
-                    { text: promptContext },
+                    { text: "Transcribe this audio interview accurately. Return only the transcription as plain text, no formatting or additional commentary." },
                     { inlineData: { mimeType, data: base64Data } }
                 ],
-            },
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: responseSchema,
             },
         });
 
         const text = response.text;
-        if (!text) throw new Error("No response text from Gemini");
-        return JSON.parse(cleanJsonString(text)) as GeneratedResult;
+        if (!text) throw new Error("No transcription from Gemini");
+        return text.trim();
 
     } catch (error: any) {
-        console.error("Gemini Text Gen Error:", error);
+        console.error("Gemini transcription error:", error);
+        throw error;
+    }
+};
+
+// 1. FAST TRACK: Transcribe & Write Text Content (+ Image Prompts)
+// Now uses Claude for content generation!
+export const generateTextAssets = async (
+    mediaBlob: Blob,
+    interviewStyle: InterviewStyle,
+    modelTier: AiModel = 'GEMINI_PRO',
+    voiceProfile?: VoiceProfile
+): Promise<GeneratedResult> => {
+    console.log(`🔊 Transcribing with Gemini ${modelTier}...`);
+
+    try {
+        // Step 1: Transcribe audio with Gemini
+        const transcription = await transcribeAudio(mediaBlob, modelTier);
+        console.log("Transcription complete:", transcription.substring(0, 100) + "...");
+
+        // Step 2: Try Claude first, fall back to Gemini if Claude fails (e.g., no credits)
+        let socialAssets: SocialContent[];
+
+        try {
+            console.log(`✍️  Generating content with Claude Sonnet 4...`);
+            socialAssets = await generateSocialContent(transcription, interviewStyle, voiceProfile);
+            console.log("Claude generated", socialAssets.length, "social assets");
+        } catch (claudeError: any) {
+            console.warn("Claude failed, falling back to Gemini:", claudeError.message);
+            console.log(`✍️  Generating content with Gemini ${modelTier} (fallback)...`);
+            socialAssets = await generateSocialContentWithGemini(transcription, interviewStyle, modelTier, voiceProfile);
+            console.log("Gemini generated", socialAssets.length, "social assets");
+        }
+
+        return {
+            transcription,
+            socialAssets,
+        };
+
+    } catch (error: any) {
+        console.error("Content generation error:", error);
         throw error;
     }
 };
@@ -163,10 +190,17 @@ export const generateSocialImages = async (
     assets: SocialContent[]
 ): Promise<SocialContent[]> => {
     const ai = getGeminiClient();
-    
+
+    console.log(`🎨 Generating ${assets.length} images with Gemini Imagen...`);
+
     // We process these in parallel to speed it up
-    const updatedAssets = await Promise.all(assets.map(async (asset) => {
-        if (!asset.imagePrompt) return asset;
+    const updatedAssets = await Promise.all(assets.map(async (asset, index) => {
+        if (!asset.imagePrompt) {
+            console.log(`⏭️  Skipping ${asset.type} - no image prompt`);
+            return asset;
+        }
+
+        console.log(`🖼️  [${index + 1}/${assets.length}] Generating ${asset.type} (${asset.imagePrompt.substring(0, 50)}...)`);
 
         try {
             // Determine Aspect Ratio based on platform
@@ -193,18 +227,25 @@ export const generateSocialImages = async (
             });
 
             // Iterate parts to find the inline data
+            let imageFound = false;
             for (const part of response.candidates?.[0]?.content?.parts || []) {
                 if (part.inlineData) {
                     const base64String = part.inlineData.data;
                     const mimeType = part.inlineData.mimeType || 'image/png';
                     asset.imageUrl = `data:${mimeType};base64,${base64String}`;
+                    console.log(`✅ Generated ${asset.type} image (${(base64String.length / 1024).toFixed(1)}KB)`);
+                    imageFound = true;
                     break;
                 }
             }
-            
+
+            if (!imageFound) {
+                console.warn(`⚠️  No image data returned for ${asset.type}`);
+            }
+
             return asset;
         } catch (e) {
-            console.error(`Failed to generate image for ${asset.type}`, e);
+            console.error(`❌ Failed to generate image for ${asset.type}:`, e);
             return asset; // Return original asset without image on fail
         }
     }));

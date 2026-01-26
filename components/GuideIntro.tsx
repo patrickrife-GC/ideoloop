@@ -80,9 +80,9 @@ export const GuideIntro: React.FC<GuideIntroProps> = ({ onStart, userPlan = 'FRE
                     key={style.id}
                     onClick={() => setSelectedStyle(style.id as InterviewStyle)}
                     className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all flex flex-col h-full overflow-hidden ${
-                        selectedStyle === style.id 
-                        ? 'border-[#82ba90] bg-[#82ba90]/5 shadow-md' 
-                        : 'border-gray-100 hover:border-[#82ba90]/50 hover:bg-gray-50'
+                        selectedStyle === style.id
+                        ? 'border-[#1f3a2e] bg-[#1f3a2e]/5 shadow-md'
+                        : 'border-gray-100 hover:border-[#1f3a2e]/50 hover:bg-gray-50'
                     }`}
                 >
                     {style.isPro && userPlan !== 'PRO' && (
@@ -91,10 +91,10 @@ export const GuideIntro: React.FC<GuideIntroProps> = ({ onStart, userPlan = 'FRE
                         </div>
                     )}
                     
-                    <h3 className={`font-bold text-lg mb-2 flex items-center gap-2 ${selectedStyle === style.id ? 'text-[#6da87a]' : 'text-gray-900'}`}>
+                    <h3 className={`font-bold text-lg mb-2 flex items-center gap-2 ${selectedStyle === style.id ? 'text-[#1f3a2e]' : 'text-gray-900'}`}>
                         {style.title}
                         {style.isPro && userPlan === 'PRO' && (
-                             <span className="text-[10px] bg-[#82ba90] text-white px-1.5 py-0.5 rounded font-bold tracking-wide">PRO</span>
+                             <span className="text-[10px] bg-[#E67E50] text-white px-1.5 py-0.5 rounded font-bold tracking-wide">PRO</span>
                         )}
                     </h3>
                     <p className="text-sm text-gray-600 flex-1">
@@ -114,7 +114,7 @@ export const GuideIntro: React.FC<GuideIntroProps> = ({ onStart, userPlan = 'FRE
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="e.g. The Q3 marketing launch, The hiring issue, The new feature..."
-                className="block w-full rounded-xl border-gray-300 bg-gray-50 shadow-sm focus:border-[#82ba90] focus:ring-[#82ba90] focus:bg-white p-4 text-base transition-colors"
+                className="block w-full rounded-xl border-gray-300 bg-gray-50 shadow-sm focus:border-[#1f3a2e] focus:ring-[#1f3a2e] focus:bg-white p-4 text-base transition-colors"
             />
         </div>
         
