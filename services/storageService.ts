@@ -1,4 +1,4 @@
-import { UserProfile, UserInsight, SessionRecord, GeneratedResult, InterviewStyle, UserPlan } from "../types";
+import { UserProfile, UserInsight, SessionRecord, GeneratedResult, InterviewStyle, UserPlan, VoiceProfile } from "../types";
 import { storage, db } from "./firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, orderBy, increment, writeBatch } from "firebase/firestore";
@@ -108,7 +108,8 @@ export const storageService = {
         interactionCount: userData.interactionCount,
         lastLogin: userData.lastLogin,
         isGuest: userData.isGuest,
-        plan: userData.plan || 'FREE'
+        plan: userData.plan || 'FREE',
+        voiceProfile: userData.voiceProfile || undefined
     };
   },
 
@@ -131,6 +132,41 @@ export const storageService = {
         return downloadUrl;
       } catch (e) {
           console.error("Upload failed", e);
+          throw e;
+      }
+  },
+
+  // Upload base64 image to Firebase Storage and return public URL
+  uploadImage: async (uid: string, base64Data: string, assetType: string): Promise<string> => {
+      try {
+        // Extract the base64 data (remove data:image/png;base64, prefix)
+        const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+          throw new Error("Invalid base64 string");
+        }
+
+        const mimeType = matches[1];
+        const base64Content = matches[2];
+
+        // Convert base64 to Blob
+        const byteCharacters = atob(base64Content);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+
+        // Upload to Storage
+        const ext = mimeType.split('/')[1] || 'png';
+        const filename = `images/${uid}/${Date.now()}_${assetType.replace(/\s+/g, '_')}.${ext}`;
+        const storageRef = ref(storage, filename);
+        const snapshot = await uploadBytes(storageRef, blob);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+
+        return downloadUrl;
+      } catch (e) {
+          console.error("Image upload failed", e);
           throw e;
       }
   },
@@ -171,6 +207,20 @@ export const storageService = {
       // Return the full updated doc (simulated) for UI state
       const snap = await getDoc(sessionRef);
       return snap.data() as SessionRecord;
+  },
+
+  // --- VOICE PROFILE (Onboarding Interview) ---
+  saveVoiceProfile: async (uid: string, voiceProfile: VoiceProfile): Promise<void> => {
+      const userRef = doc(db, "users", uid);
+      try {
+          await updateDoc(userRef, {
+              voiceProfile: deepSanitize(voiceProfile),
+              lastActive: Date.now()
+          });
+      } catch (e) {
+          console.error("Save voice profile failed", e);
+          throw e;
+      }
   },
 
   // --- ADMIN FUNCTIONS ---

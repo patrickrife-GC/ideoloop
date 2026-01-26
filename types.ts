@@ -7,7 +7,8 @@ export interface Question {
 }
 
 // New Interview Types for the Conversational Mode
-export type InterviewStyle = 
+export type InterviewStyle =
+  | 'ONBOARDING'
   | 'WIN_OF_WEEK'
   | 'HARD_LESSON'
   | 'CUSTOMER_VOICE'
@@ -35,6 +36,7 @@ export interface SocialContent {
   hashtags?: string[];
   imagePrompt?: string; // The text description for the AI artist
   imageUrl?: string; // The generated base64 image
+  generatedBy?: 'Claude' | 'Gemini'; // Track which AI generated the content
 }
 
 export interface UserInsight {
@@ -55,6 +57,31 @@ export interface SessionRecord {
 
 export type UserPlan = 'FREE' | 'PRO';
 
+// Voice Profile from 7-question onboarding interview
+export interface OnboardingAnswer {
+  questionId: string;
+  question: string;
+  answer: string;
+  timestamp: number;
+}
+
+export interface VoiceProfile {
+  onboardingCompleted: boolean;
+  onboardingCompletedAt?: number;
+  answers: OnboardingAnswer[];
+  // Extracted fields for easy access
+  currentGoal?: string;
+  realMotivation?: string;
+  targetAudience?: string;
+  audienceStruggle?: string;
+  contrarianBelief?: string;
+  coreLesson?: string;
+  lessonOrigin?: string;
+  growthMoment?: string;
+  misunderstood?: string;
+  emergingIdea?: string;
+}
+
 export interface UserProfile {
   id: string; // This will now be the Firebase UID
   name: string;
@@ -67,6 +94,7 @@ export interface UserProfile {
   lastLogin?: number;
   isGuest?: boolean;
   plan: UserPlan; // Added plan field
+  voiceProfile?: VoiceProfile; // Voice profile from onboarding
 }
 
 export interface GeneratedResult {
@@ -81,6 +109,7 @@ export enum AppView {
   LANDING = 'LANDING',
   AUTH = 'AUTH',
   WELCOME = 'WELCOME',
+  ONBOARDING = 'ONBOARDING', // 7-question voice profile interview
   GUIDE_INTRO = 'GUIDE_INTRO',
   STUDIO = 'STUDIO',
   SUMMARY = 'SUMMARY',

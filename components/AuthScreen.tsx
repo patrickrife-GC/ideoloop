@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  signInWithRedirect,
-  signInAnonymously 
+import {
+  signInWithPopup,
+  signInAnonymously
 } from "firebase/auth";
 import { auth, googleProvider } from "../services/firebase";
 
@@ -29,27 +29,39 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, authLoad
   const handleGuestLogin = async () => {
     if (authLoading) return;
     setIsLoading(true);
+    setError(null);
     try {
       const result = await signInAnonymously(auth);
       onLoginSuccess(result.user);
     } catch (err) {
       console.warn("Anonymous auth failed, using mock instead.", err);
       forceMockEntry();
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // 🚀 Google login using redirect (required outside localhost)
+  // 🚀 Google login using popup (works better for localhost)
   const handleGoogleLogin = async () => {
     if (authLoading) return;
     setIsLoading(true);
     setError(null);
 
     try {
-      await signInWithRedirect(auth, googleProvider);
-    } catch (err) {
-      console.error("Google redirect failed", err);
-      setError("Unable to authenticate. Switching to Guest Mode...");
-      handleGuestLogin();
+      const result = await signInWithPopup(auth, googleProvider);
+      onLoginSuccess(result.user);
+    } catch (err: any) {
+      console.error("Google popup failed", err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError("Sign-in cancelled. Try again or use Guest mode.");
+        setIsLoading(false);
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError("This domain isn't authorized. Using Guest mode...");
+        handleGuestLogin();
+      } else {
+        setError("Google sign-in failed. Try Guest mode instead.");
+        setIsLoading(false);
+      }
     }
   };
 
@@ -58,7 +70,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, authLoad
 
       {/* Background graphic */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-7xl pointer-events-none opacity-20 blur-3xl z-0">
-        <div className="aspect-[1100/600] w-full bg-gradient-to-tr from-[#82ba90] to-[#a7f3d0]"
+        <div className="aspect-[1100/600] w-full bg-gradient-to-tr from-[#1f3a2e] to-[#6B9B7F]"
              style={{clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)'}}>
         </div>
       </div>
@@ -66,7 +78,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, authLoad
       <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20 relative z-50">
 
         <div className="text-center mb-10">
-          <div className="mx-auto w-12 h-12 bg-[#82ba90]/10 rounded-full flex items-center justify-center mb-4">
+          <div className="mx-auto w-12 h-12 bg-[#1f3a2e]/10 rounded-full flex items-center justify-center mb-4">
             <span className="text-2xl">⚡️</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-3">Sign in to Ideoloop</h1>

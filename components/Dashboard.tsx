@@ -35,7 +35,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onBack, onAdmin, onV
              
              {/* Plan Badge */}
              {user.plan === 'PRO' ? (
-                 <span className="text-xs font-bold bg-[#82ba90] text-white px-2 py-1 rounded tracking-wide">PRO</span>
+                 <span className="text-xs font-bold bg-[#1f3a2e] text-white px-2 py-1 rounded tracking-wide">PRO</span>
              ) : (
                  <button className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200 transition-colors flex items-center gap-1">
                      <StarIcon className="w-3 h-3 text-yellow-500" />
@@ -47,7 +47,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onBack, onAdmin, onV
              {user.photoUrl ? (
                  <img src={user.photoUrl} alt={user.name} className="w-8 h-8 rounded-full border border-gray-200" />
              ) : (
-                 <div className="w-8 h-8 rounded-full bg-[#82ba90] flex items-center justify-center text-white font-bold">
+                 <div className="w-8 h-8 rounded-full bg-[#1f3a2e] flex items-center justify-center text-white font-bold">
                      {user.name.charAt(0)}
                  </div>
              )}
@@ -81,7 +81,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onBack, onAdmin, onV
                 <DocumentTextIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900">No content yet</h3>
                 <p className="text-gray-500">Start your first interview to populate your dashboard.</p>
-                <button onClick={onBack} className="mt-4 text-[#82ba90] font-semibold hover:underline">
+                <button onClick={onBack} className="mt-4 text-[#1f3a2e] font-semibold hover:underline">
                     Go to Studio
                 </button>
             </div>
@@ -100,7 +100,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onBack, onAdmin, onV
                             <div className="flex items-center gap-2">
                                 <button 
                                     onClick={() => onViewSession(session)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#82ba90] text-white rounded-lg text-xs font-semibold hover:bg-[#6da87a] transition-colors"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1f3a2e] text-white rounded-lg text-xs font-semibold hover:bg-[#5a7968] transition-colors"
                                 >
                                     <FolderOpenIcon className="w-3 h-3" />
                                     Open Project
@@ -121,7 +121,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onBack, onAdmin, onV
                                 {(session.socialAssets || []).map((asset, i) => (
                                     <div key={i} className="bg-gray-50 p-4 rounded-lg border border-gray-100">
                                         <div className="flex justify-between items-start mb-2">
-                                            <span className="text-xs font-bold text-[#82ba90] bg-[#82ba90]/10 px-2 py-1 rounded">
+                                            <span className="text-xs font-bold text-[#1f3a2e] bg-[#1f3a2e]/10 px-2 py-1 rounded">
                                                 {asset.type}
                                             </span>
                                         </div>

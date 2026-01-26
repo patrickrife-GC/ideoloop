@@ -86,7 +86,7 @@ export const Results: React.FC<ResultsProps> = ({ result, recordings, videoUrl, 
             )}
             <button 
                 onClick={onRestart}
-                className="text-[#82ba90] hover:text-[#6da87a] text-sm font-semibold border border-[#82ba90] px-4 py-2 rounded-lg hover:bg-[#82ba90]/10 transition-colors"
+                className="text-[#1f3a2e] hover:text-[#5a7968] text-sm font-semibold border border-[#1f3a2e] px-4 py-2 rounded-lg hover:bg-[#1f3a2e]/10 transition-colors"
             >
                 Start New
             </button>
