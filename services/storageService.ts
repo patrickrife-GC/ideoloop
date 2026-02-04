@@ -49,6 +49,7 @@ export const storageService = {
             email: fbUser.email || '',
             photoUrl: fbUser.photoURL || null,
             joinedAt: Date.now(),
+            lastLogin: Date.now(),
             interactionCount: 0,
             plan: 'FREE',
             isGuest: fbUser.isAnonymous
@@ -58,6 +59,12 @@ export const storageService = {
         try {
              await setDoc(userRef, deepSanitize(userData), { merge: true });
         } catch(e) { console.warn("Could not cache user profile to cloud (Offline)"); }
+    } else {
+        // Update lastLogin for existing users
+        try {
+            await updateDoc(userRef, { lastLogin: Date.now() });
+            userData.lastLogin = Date.now();
+        } catch(e) { console.warn("Could not update lastLogin"); }
     }
 
     // 2. DATA RESCUE: Check Local Storage for "Stranded" sessions

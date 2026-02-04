@@ -153,7 +153,7 @@ export const Results: React.FC<ResultsProps> = ({ result, recordings, videoUrl, 
                             {asset.hashtags && asset.hashtags.length > 0 && (
                                 <div className="mt-6 flex flex-wrap gap-2 pt-4 border-t border-gray-100">
                                 {asset.hashtags.map((tag, i) => (
-                                    <span key={i} className="text-gray-400 text-sm">#{tag}</span>
+                                    <span key={i} className="text-gray-400 text-sm">{tag.startsWith('#') ? tag : `#${tag}`}</span>
                                 ))}
                                 </div>
                             )}
