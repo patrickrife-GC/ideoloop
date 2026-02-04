@@ -98,7 +98,7 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
         try { if (outputCtx.state === 'suspended') await outputCtx.resume(); } catch(e) {}
 
         const styleConfig = STYLES_CONFIG[interviewStyle];
-        const client = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const client = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
         
         // INJECT USER MEMORY & TOPIC
         let dynamicSystemInstruction = styleConfig.system;

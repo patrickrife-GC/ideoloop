@@ -209,6 +209,21 @@ export const storageService = {
       return snap.data() as SessionRecord;
   },
 
+  // Fetch a single session fresh from Firestore
+  getSession: async (uid: string, sessionId: string): Promise<SessionRecord | null> => {
+      try {
+          const sessionRef = doc(db, "users", uid, "sessions", sessionId);
+          const snap = await getDoc(sessionRef);
+          if (snap.exists()) {
+              return snap.data() as SessionRecord;
+          }
+          return null;
+      } catch (e) {
+          console.error("Failed to fetch session", e);
+          return null;
+      }
+  },
+
   // --- VOICE PROFILE (Onboarding Interview) ---
   saveVoiceProfile: async (uid: string, voiceProfile: VoiceProfile): Promise<void> => {
       const userRef = doc(db, "users", uid);
