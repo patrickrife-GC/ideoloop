@@ -210,46 +210,52 @@ function App() {
         }
 
         if (textData.socialAssets) {
+          console.log("🎨 Starting image generation for", textData.socialAssets.length, "assets");
           const assetsWithImages = await generateSocialImages(textData.socialAssets);
+          console.log("🎨 Image generation complete. Assets with images:", assetsWithImages.filter(a => a.imageUrl).length);
 
           // Upload images to Firebase Storage and replace base64 URLs with cloud URLs
           let uploadFailedCount = 0;
+          let uploadSuccessCount = 0;
           const assetsWithCloudImages = await Promise.all(
             assetsWithImages.map(async (asset) => {
               if (asset.imageUrl && asset.imageUrl.startsWith('data:')) {
+                console.log(`☁️  Uploading ${asset.type} image to Firebase Storage...`);
                 try {
                   const cloudUrl = await storageService.uploadImage(
                     currentUser.id,
                     asset.imageUrl,
                     asset.type
                   );
+                  console.log(`✅ ${asset.type} image uploaded:`, cloudUrl.substring(0, 80) + "...");
+                  uploadSuccessCount++;
                   return { ...asset, imageUrl: cloudUrl };
                 } catch (e) {
-                  console.warn(`Failed to upload image for ${asset.type}. Keeping base64.`, e);
+                  console.error(`❌ Failed to upload image for ${asset.type}:`, e);
                   uploadFailedCount++;
-                  return asset; // Keep base64 if upload fails (local dev only)
+                  return asset; // Keep base64 if upload fails
                 }
               }
               return asset;
             })
           );
 
-          // Warn user if images won't persist (local development CORS issue)
-          if (uploadFailedCount > 0) {
-            console.warn(`⚠️  ${uploadFailedCount} images generated but won't persist to Firebase due to CORS (localhost limitation). Images will work in production deployment.`);
-          }
+          console.log(`📊 Image upload summary: ${uploadSuccessCount} succeeded, ${uploadFailedCount} failed`);
 
           const complete = { ...textData, socialAssets: assetsWithCloudImages };
           setGeneratedResult(prev => ({ ...prev, ...complete }));
 
           // Try to save with cloud URLs
+          console.log("💾 Saving session with images to Firestore...");
           try {
             const updated = await storageService.updateSession(currentUser.id, currentSessionId, {
               socialAssets: assetsWithCloudImages
             });
+            console.log("✅ Session saved with images. socialAssets count:", updated.socialAssets?.length);
+            console.log("📸 Image URLs in saved session:", updated.socialAssets?.map(a => a.imageUrl ? "has image" : "no image"));
             updateLocalHistory(updated);
           } catch (e) {
-            console.warn("Failed to save images to Firebase. Content is still available locally.", e);
+            console.error("❌ Failed to save session with images:", e);
           }
         }
       })

@@ -15,7 +15,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBJN0Tgt8nc1LTCyNYSWmJ4XsPq1LKza18",
   authDomain: "ideoloop-webapp.firebaseapp.com",
   projectId: "ideoloop-webapp",
-  storageBucket: "ideoloop-webapp.appspot.com",
+  storageBucket: "ideoloop-webapp.firebasestorage.app",
   messagingSenderId: "259434637786",
   appId: "1:259434637786:web:c0828d61cf830d4e49b8e3"
 };
