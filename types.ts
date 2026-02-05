@@ -82,6 +82,8 @@ export interface VoiceProfile {
   emergingIdea?: string;
 }
 
+export type UserRole = 'user' | 'admin';
+
 export interface UserProfile {
   id: string; // This will now be the Firebase UID
   name: string;
@@ -95,6 +97,7 @@ export interface UserProfile {
   isGuest?: boolean;
   plan: UserPlan; // Added plan field
   voiceProfile?: VoiceProfile; // Voice profile from onboarding
+  role?: UserRole; // Admin role for privileged users
 }
 
 export interface GeneratedResult {

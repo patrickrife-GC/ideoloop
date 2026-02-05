@@ -6,6 +6,9 @@ import { User } from "firebase/auth";
 
 const STORAGE_KEY_PREFIX = 'ideoloop_user_';
 
+// Admin email addresses - these users get admin role
+const ADMIN_EMAILS = ['patrickrife@gmail.com'];
+
 // --- UTILITY: Deep Sanitize ---
 // Firestore crashes if any field is 'undefined'. This recursively turns undefined -> null.
 const deepSanitize = (obj: any): any => {
@@ -43,6 +46,7 @@ export const storageService = {
 
     // Default structure (for new users OR offline fallback)
     if (!userData) {
+        const isAdmin = fbUser.email && ADMIN_EMAILS.includes(fbUser.email);
         userData = {
             uid: uid,
             name: fbUser.displayName || 'Creator',
@@ -52,7 +56,8 @@ export const storageService = {
             lastLogin: Date.now(),
             interactionCount: 0,
             plan: 'FREE',
-            isGuest: fbUser.isAnonymous
+            isGuest: fbUser.isAnonymous,
+            role: isAdmin ? 'admin' : 'user'
         };
 
         // Only try to write if we think we might be online (catch error if not)
@@ -104,6 +109,17 @@ export const storageService = {
         console.warn("Could not fetch sessions (Offline).");
     }
 
+    // Check admin status (might need to update for existing users)
+    const isAdmin = fbUser.email && ADMIN_EMAILS.includes(fbUser.email);
+    const role = isAdmin ? 'admin' : (userData.role || 'user');
+
+    // Update role in Firestore if it changed
+    if (userData.role !== role) {
+        try {
+            await updateDoc(userRef, { role });
+        } catch(e) { console.warn("Could not update role"); }
+    }
+
     return {
         id: userData.uid,
         name: userData.name,
@@ -116,7 +132,8 @@ export const storageService = {
         lastLogin: userData.lastLogin,
         isGuest: userData.isGuest,
         plan: userData.plan || 'FREE',
-        voiceProfile: userData.voiceProfile || undefined
+        voiceProfile: userData.voiceProfile || undefined,
+        role: role
     };
   },
 

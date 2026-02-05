@@ -26,7 +26,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onBack, onAdmin, onV
              <h1 className="text-xl font-bold text-gray-900">Your Dashboard</h1>
           </div>
           <div className="flex items-center gap-3">
-             {onAdmin && (
+             {onAdmin && user.role === 'admin' && (
                  <button onClick={onAdmin} className="text-xs bg-gray-800 text-white px-3 py-1.5 rounded-full hover:bg-black transition-colors flex items-center gap-1">
                      <ShieldCheckIcon className="w-3 h-3" />
                      Admin
