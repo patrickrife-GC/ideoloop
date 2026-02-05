@@ -65,8 +65,9 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const nextStartTimeRef = useRef<number>(0);
 
-  // Active voice config
-  const activeVoice = STYLES_CONFIG[interviewStyle].voice;
+  // Active voice config - fallback to WIN_OF_WEEK if style not found
+  const styleConfig = STYLES_CONFIG[interviewStyle] || STYLES_CONFIG['WIN_OF_WEEK'];
+  const activeVoice = styleConfig.voice;
 
   useEffect(() => {
     let cleanup = false;
@@ -101,11 +102,11 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
         try { if (inputCtx.state === 'suspended') await inputCtx.resume(); } catch(e) {}
         try { if (outputCtx.state === 'suspended') await outputCtx.resume(); } catch(e) {}
 
-        const styleConfig = STYLES_CONFIG[interviewStyle];
+        const innerStyleConfig = STYLES_CONFIG[interviewStyle] || STYLES_CONFIG['WIN_OF_WEEK'];
         const client = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
         
         // INJECT USER MEMORY & TOPIC
-        let dynamicSystemInstruction = styleConfig.system;
+        let dynamicSystemInstruction = innerStyleConfig.system;
         
         if (interviewTopic) {
             dynamicSystemInstruction += `\n\nCONTEXT: The user specifically wants to discuss "${interviewTopic}" within this framework.`;
@@ -133,7 +134,7 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
           config: {
             responseModalities: [Modality.AUDIO],
             speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: styleConfig.voice } }
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: innerStyleConfig.voice } }
             },
             systemInstruction: dynamicSystemInstruction,
           },
