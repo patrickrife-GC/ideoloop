@@ -13,6 +13,10 @@ interface StudioProps {
 
 // Updated Personalities: "Professional Inquiry"
 const STYLES_CONFIG: Record<InterviewStyle, { system: string; voice: string }> = {
+  'ONBOARDING': {
+    system: "You are a friendly onboarding guide. Your goal is to learn about the user and help them get started. Be warm, curious, and encouraging.",
+    voice: 'Kore'
+  },
   'WIN_OF_WEEK': {
     system: "You are an investigative journalist. Your goal is to uncover the root cause of a recent success. Ask these 3 questions, but LISTEN closely. If the user gives a short answer, ask a follow-up 'Why?' or 'Tell me more about X' before moving to the next number. \n\n1. What’s something that worked better than expected recently? \n2. Why do you think it worked—what was the underlying insight? \n3. How might you replicate or amplify this?",
     voice: 'Kore'
