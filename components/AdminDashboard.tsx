@@ -302,118 +302,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, currentU
                           </button>
                       </div>
 
-                      {/* View User Content Modal */}
-                      {viewingUser && (
-                          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-                                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                                      <div className="flex items-center gap-3">
-                                          {viewingUser.photoUrl ? (
-                                              <img src={viewingUser.photoUrl} alt="" className="w-10 h-10 rounded-full" />
-                                          ) : (
-                                              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
-                                                  {viewingUser.name ? viewingUser.name.charAt(0) : 'U'}
-                                              </div>
-                                          )}
-                                          <div>
-                                              <h3 className="text-xl font-bold text-gray-900">{viewingUser.name || 'Anonymous'}</h3>
-                                              <p className="text-sm text-gray-500">{viewingUser.email}</p>
-                                          </div>
-                                      </div>
-                                      <button
-                                          onClick={closeUserContentModal}
-                                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                      >
-                                          <XMarkIcon className="w-5 h-5 text-gray-500" />
-                                      </button>
-                                  </div>
-
-                                  <div className="flex-1 overflow-y-auto p-6">
-                                      {isLoadingSessions ? (
-                                          <div className="flex justify-center py-12">
-                                              <div className="w-8 h-8 border-4 border-[#1f3a2e] border-t-transparent rounded-full animate-spin"></div>
-                                          </div>
-                                      ) : userSessions.length === 0 ? (
-                                          <div className="text-center py-12">
-                                              <PlayIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                              <p className="text-gray-500">No sessions yet</p>
-                                          </div>
-                                      ) : (
-                                          <div className="space-y-4">
-                                              {userSessions.map((session) => (
-                                                  <div key={session.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                                                      <button
-                                                          onClick={() => setExpandedSessionId(expandedSessionId === session.id ? null : session.id)}
-                                                          className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left"
-                                                      >
-                                                          <div className="flex items-center gap-3">
-                                                              <span className="text-xs font-bold bg-[#1f3a2e] text-white px-2 py-1 rounded">
-                                                                  {session.style}
-                                                              </span>
-                                                              <span className="text-sm text-gray-600">
-                                                                  {new Date(session.timestamp).toLocaleString()}
-                                                              </span>
-                                                          </div>
-                                                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                              <span>{session.socialAssets?.length || 0} assets</span>
-                                                              <span className="text-gray-300">|</span>
-                                                              <span>{expandedSessionId === session.id ? '▼' : '▶'}</span>
-                                                          </div>
-                                                      </button>
-
-                                                      {expandedSessionId === session.id && (
-                                                          <div className="p-4 space-y-4 bg-white">
-                                                              {/* Transcription */}
-                                                              {session.transcription && (
-                                                                  <div>
-                                                                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Transcription</h5>
-                                                                      <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto">
-                                                                          {session.transcription}
-                                                                      </p>
-                                                                  </div>
-                                                              )}
-
-                                                              {/* Social Assets */}
-                                                              {session.socialAssets && session.socialAssets.length > 0 && (
-                                                                  <div>
-                                                                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Generated Content</h5>
-                                                                      <div className="space-y-3">
-                                                                          {session.socialAssets.map((asset, idx) => (
-                                                                              <div key={idx} className="bg-gray-50 p-3 rounded-lg">
-                                                                                  <div className="flex items-center gap-2 mb-2">
-                                                                                      <span className="text-xs font-semibold text-[#1f3a2e]">{asset.type}</span>
-                                                                                      {asset.generatedBy && (
-                                                                                          <span className="text-xs text-gray-400">via {asset.generatedBy}</span>
-                                                                                      )}
-                                                                                  </div>
-                                                                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{asset.content}</p>
-                                                                                  {asset.imageUrl && (
-                                                                                      <img src={asset.imageUrl} alt="" className="mt-2 max-w-xs rounded-lg" />
-                                                                                  )}
-                                                                              </div>
-                                                                          ))}
-                                                                      </div>
-                                                                  </div>
-                                                              )}
-
-                                                              {/* Audio/Video */}
-                                                              {session.videoUrl && (
-                                                                  <div>
-                                                                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Recording</h5>
-                                                                      <audio controls src={session.videoUrl} className="w-full" />
-                                                                  </div>
-                                                              )}
-                                                          </div>
-                                                      )}
-                                                  </div>
-                                              ))}
-                                          </div>
-                                      )}
-                                  </div>
-                              </div>
-                          </div>
-                      )}
-
                       {/* Create Form Modal */}
                       {showCreateForm && (
                           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -548,6 +436,118 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack, currentU
               )}
           </div>
       </div>
+
+      {/* View User Content Modal - Outside tab content so it renders on any tab */}
+      {viewingUser && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                          {viewingUser.photoUrl ? (
+                              <img src={viewingUser.photoUrl} alt="" className="w-10 h-10 rounded-full" />
+                          ) : (
+                              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
+                                  {viewingUser.name ? viewingUser.name.charAt(0) : 'U'}
+                              </div>
+                          )}
+                          <div>
+                              <h3 className="text-xl font-bold text-gray-900">{viewingUser.name || 'Anonymous'}</h3>
+                              <p className="text-sm text-gray-500">{viewingUser.email}</p>
+                          </div>
+                      </div>
+                      <button
+                          onClick={closeUserContentModal}
+                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                          <XMarkIcon className="w-5 h-5 text-gray-500" />
+                      </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-6">
+                      {isLoadingSessions ? (
+                          <div className="flex justify-center py-12">
+                              <div className="w-8 h-8 border-4 border-[#1f3a2e] border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                      ) : userSessions.length === 0 ? (
+                          <div className="text-center py-12">
+                              <PlayIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                              <p className="text-gray-500">No sessions yet</p>
+                          </div>
+                      ) : (
+                          <div className="space-y-4">
+                              {userSessions.map((session) => (
+                                  <div key={session.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                                      <button
+                                          onClick={() => setExpandedSessionId(expandedSessionId === session.id ? null : session.id)}
+                                          className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left"
+                                      >
+                                          <div className="flex items-center gap-3">
+                                              <span className="text-xs font-bold bg-[#1f3a2e] text-white px-2 py-1 rounded">
+                                                  {session.style}
+                                              </span>
+                                              <span className="text-sm text-gray-600">
+                                                  {new Date(session.timestamp).toLocaleString()}
+                                              </span>
+                                          </div>
+                                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                                              <span>{session.socialAssets?.length || 0} assets</span>
+                                              <span className="text-gray-300">|</span>
+                                              <span>{expandedSessionId === session.id ? '▼' : '▶'}</span>
+                                          </div>
+                                      </button>
+
+                                      {expandedSessionId === session.id && (
+                                          <div className="p-4 space-y-4 bg-white">
+                                              {/* Transcription */}
+                                              {session.transcription && (
+                                                  <div>
+                                                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Transcription</h5>
+                                                      <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto">
+                                                          {session.transcription}
+                                                      </p>
+                                                  </div>
+                                              )}
+
+                                              {/* Social Assets */}
+                                              {session.socialAssets && session.socialAssets.length > 0 && (
+                                                  <div>
+                                                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Generated Content</h5>
+                                                      <div className="space-y-3">
+                                                          {session.socialAssets.map((asset, idx) => (
+                                                              <div key={idx} className="bg-gray-50 p-3 rounded-lg">
+                                                                  <div className="flex items-center gap-2 mb-2">
+                                                                      <span className="text-xs font-semibold text-[#1f3a2e]">{asset.type}</span>
+                                                                      {asset.generatedBy && (
+                                                                          <span className="text-xs text-gray-400">via {asset.generatedBy}</span>
+                                                                      )}
+                                                                  </div>
+                                                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{asset.content}</p>
+                                                                  {asset.imageUrl && (
+                                                                      <img src={asset.imageUrl} alt="" className="mt-2 max-w-xs rounded-lg" />
+                                                                  )}
+                                                              </div>
+                                                          ))}
+                                                      </div>
+                                                  </div>
+                                              )}
+
+                                              {/* Audio/Video */}
+                                              {session.videoUrl && (
+                                                  <div>
+                                                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Recording</h5>
+                                                      <audio controls src={session.videoUrl} className="w-full" />
+                                                  </div>
+                                              )}
+                                          </div>
+                                      )}
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

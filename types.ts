@@ -14,7 +14,8 @@ export type InterviewStyle =
   | 'CUSTOMER_VOICE'
   | 'DECISION_IN_PROGRESS'
   | 'PATTERN_RECOGNITION'
-  | 'ENERGY_CHECK';
+  | 'ENERGY_CHECK'
+  | 'IDEA_PULL';
 
 export interface InterviewConfig {
   id: InterviewStyle;
