@@ -30,7 +30,12 @@ export const createGeminiProvider = (options: GeminiProviderOptions = {}): AiCli
           : undefined,
         systemInstruction: args.systemInstruction,
       },
-      callbacks: args.callbacks,
+      callbacks: {
+        onopen: args.callbacks.onopen,
+        onmessage: args.callbacks.onmessage ?? (() => {}),
+        onclose: args.callbacks.onclose,
+        onerror: args.callbacks.onerror,
+      },
     });
 
     return sessionPromise;
@@ -181,7 +186,7 @@ export const createGeminiProvider = (options: GeminiProviderOptions = {}): AiCli
           return {
             ...asset,
             imageUrl,
-            imageStatus: "ready",
+            imageStatus: "ready" as const,
             imageError: undefined,
           };
         } catch (e: any) {
@@ -189,7 +194,7 @@ export const createGeminiProvider = (options: GeminiProviderOptions = {}): AiCli
           console.error("Image gen failed", e);
           return {
             ...asset,
-            imageStatus: "failed",
+            imageStatus: "failed" as const,
             imageError: message,
           };
         }

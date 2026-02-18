@@ -1,10 +1,13 @@
-import { UserProfile, UserInsight, SessionRecord, GeneratedResult, InterviewStyle, UserPlan } from "../types";
+import { UserProfile, UserInsight, SessionRecord, GeneratedResult, InterviewStyle, UserPlan, VoiceProfile, CustomPrompt } from "../types";
 import { storage, db } from "./firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, orderBy, increment, writeBatch } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, orderBy, increment, writeBatch, where, deleteDoc } from "firebase/firestore";
 import { User } from "firebase/auth";
 
 const STORAGE_KEY_PREFIX = 'ideoloop_user_';
+
+// Admin email addresses - these users get admin role
+const ADMIN_EMAILS = ['patrickrife@gmail.com'];
 
 const dataUrlToBlob = (dataUrl: string) => {
     const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
@@ -56,21 +59,30 @@ export const storageService = {
 
     // Default structure (for new users OR offline fallback)
     if (!userData) {
+        const isAdmin = fbUser.email && ADMIN_EMAILS.includes(fbUser.email);
         userData = {
             uid: uid,
             name: fbUser.displayName || 'Creator',
             email: fbUser.email || '',
             photoUrl: fbUser.photoURL || null,
             joinedAt: Date.now(),
+            lastLogin: Date.now(),
             interactionCount: 0,
             plan: 'FREE',
-            isGuest: fbUser.isAnonymous
+            isGuest: fbUser.isAnonymous,
+            role: isAdmin ? 'admin' : 'user'
         };
 
         // Only try to write if we think we might be online (catch error if not)
         try {
              await setDoc(userRef, deepSanitize(userData), { merge: true });
         } catch(e) { console.warn("Could not cache user profile to cloud (Offline)"); }
+    } else {
+        // Update lastLogin for existing users
+        try {
+            await updateDoc(userRef, { lastLogin: Date.now() });
+            userData.lastLogin = Date.now();
+        } catch(e) { console.warn("Could not update lastLogin"); }
     }
 
     // 2. DATA RESCUE: Check Local Storage for "Stranded" sessions
@@ -110,6 +122,17 @@ export const storageService = {
         console.warn("Could not fetch sessions (Offline).");
     }
 
+    // Check admin status (might need to update for existing users)
+    const isAdmin = fbUser.email && ADMIN_EMAILS.includes(fbUser.email);
+    const role = isAdmin ? 'admin' : (userData.role || 'user');
+
+    // Update role in Firestore if it changed
+    if (userData.role !== role) {
+        try {
+            await updateDoc(userRef, { role });
+        } catch(e) { console.warn("Could not update role"); }
+    }
+
     return {
         id: userData.uid,
         name: userData.name,
@@ -121,7 +144,9 @@ export const storageService = {
         interactionCount: userData.interactionCount,
         lastLogin: userData.lastLogin,
         isGuest: userData.isGuest,
-        plan: userData.plan || 'FREE'
+        plan: userData.plan || 'FREE',
+        voiceProfile: userData.voiceProfile || undefined,
+        role: role
     };
   },
 
@@ -200,6 +225,35 @@ export const storageService = {
       return snap.data() as SessionRecord;
   },
 
+  // Fetch a single session fresh from Firestore
+  getSession: async (uid: string, sessionId: string): Promise<SessionRecord | null> => {
+      try {
+          const sessionRef = doc(db, "users", uid, "sessions", sessionId);
+          const snap = await getDoc(sessionRef);
+          if (snap.exists()) {
+              return snap.data() as SessionRecord;
+          }
+          return null;
+      } catch (e) {
+          console.error("Failed to fetch session", e);
+          return null;
+      }
+  },
+
+  // --- VOICE PROFILE (Onboarding Interview) ---
+  saveVoiceProfile: async (uid: string, voiceProfile: VoiceProfile): Promise<void> => {
+      const userRef = doc(db, "users", uid);
+      try {
+          await updateDoc(userRef, {
+              voiceProfile: deepSanitize(voiceProfile),
+              lastActive: Date.now()
+          });
+      } catch (e) {
+          console.error("Save voice profile failed", e);
+          throw e;
+      }
+  },
+
   // --- ADMIN FUNCTIONS ---
   getAllUsers: async () => {
       try {
@@ -210,6 +264,171 @@ export const storageService = {
       } catch (e) {
           console.error("Admin fetch failed", e);
           return [];
+      }
+  },
+
+  // Admin: Fetch all sessions for a specific user
+  getUserSessions: async (uid: string): Promise<SessionRecord[]> => {
+      try {
+          const sessionsRef = collection(db, "users", uid, "sessions");
+          const q = query(sessionsRef, orderBy("timestamp", "desc"));
+          const snapshot = await getDocs(q);
+          return snapshot.docs.map(doc => doc.data() as SessionRecord);
+      } catch (e) {
+          console.error("Fetch user sessions failed", e);
+          return [];
+      }
+  },
+
+  updateUserPlan: async (uid: string, plan: 'FREE' | 'PRO'): Promise<void> => {
+      try {
+          const userRef = doc(db, "users", uid);
+          await updateDoc(userRef, { plan });
+      } catch (e) {
+          console.error("Update user plan failed", e);
+          throw e;
+      }
+  },
+
+  // --- CUSTOM PROMPTS ---
+  createCustomPrompt: async (prompt: Omit<CustomPrompt, 'id' | 'createdAt' | 'usageCount' | 'isActive'>): Promise<CustomPrompt> => {
+      const id = crypto.randomUUID();
+      const shareCode = Math.random().toString(36).substring(2, 10); // 8 char code
+
+      const newPrompt: CustomPrompt = {
+          ...prompt,
+          id,
+          shareCode,
+          createdAt: Date.now(),
+          usageCount: 0,
+          isActive: true
+      };
+
+      try {
+          const promptRef = doc(db, "customPrompts", id);
+          await setDoc(promptRef, deepSanitize(newPrompt));
+          return newPrompt;
+      } catch (e) {
+          console.error("Create custom prompt failed", e);
+          throw e;
+      }
+  },
+
+  getCustomPrompt: async (id: string): Promise<CustomPrompt | null> => {
+      try {
+          const promptRef = doc(db, "customPrompts", id);
+          const snapshot = await getDoc(promptRef);
+          return snapshot.exists() ? snapshot.data() as CustomPrompt : null;
+      } catch (e) {
+          console.error("Get custom prompt failed", e);
+          return null;
+      }
+  },
+
+  getCustomPromptByShareCode: async (shareCode: string): Promise<CustomPrompt | null> => {
+      try {
+          const promptsRef = collection(db, "customPrompts");
+          const q = query(promptsRef, where("shareCode", "==", shareCode), where("isActive", "==", true));
+          const snapshot = await getDocs(q);
+          if (snapshot.empty) return null;
+          return snapshot.docs[0].data() as CustomPrompt;
+      } catch (e) {
+          console.error("Get custom prompt by share code failed", e);
+          return null;
+      }
+  },
+
+  getCustomPromptsForUser: async (email: string, userId?: string): Promise<CustomPrompt[]> => {
+      try {
+          const promptsRef = collection(db, "customPrompts");
+          // Get prompts assigned to this email or user ID
+          const byEmail = query(promptsRef, where("assignedToEmail", "==", email), where("isActive", "==", true));
+          const emailSnapshot = await getDocs(byEmail);
+
+          let prompts = emailSnapshot.docs.map(doc => doc.data() as CustomPrompt);
+
+          if (userId) {
+              const byUserId = query(promptsRef, where("assignedToUserId", "==", userId), where("isActive", "==", true));
+              const userIdSnapshot = await getDocs(byUserId);
+              const userIdPrompts = userIdSnapshot.docs.map(doc => doc.data() as CustomPrompt);
+              // Merge and dedupe
+              const existingIds = new Set(prompts.map(p => p.id));
+              prompts = [...prompts, ...userIdPrompts.filter(p => !existingIds.has(p.id))];
+          }
+
+          return prompts;
+      } catch (e) {
+          console.error("Get custom prompts for user failed", e);
+          return [];
+      }
+  },
+
+  getAllCustomPrompts: async (): Promise<CustomPrompt[]> => {
+      try {
+          const promptsRef = collection(db, "customPrompts");
+          const q = query(promptsRef, orderBy("createdAt", "desc"));
+          const snapshot = await getDocs(q);
+          return snapshot.docs.map(doc => doc.data() as CustomPrompt);
+      } catch (e) {
+          console.error("Get all custom prompts failed", e);
+          return [];
+      }
+  },
+
+  updateCustomPrompt: async (id: string, updates: Partial<CustomPrompt>): Promise<void> => {
+      try {
+          const promptRef = doc(db, "customPrompts", id);
+          await updateDoc(promptRef, deepSanitize(updates));
+      } catch (e) {
+          console.error("Update custom prompt failed", e);
+          throw e;
+      }
+  },
+
+  deleteCustomPrompt: async (id: string): Promise<void> => {
+      try {
+          const promptRef = doc(db, "customPrompts", id);
+          await deleteDoc(promptRef);
+      } catch (e) {
+          console.error("Delete custom prompt failed", e);
+          throw e;
+      }
+  },
+
+  recordCustomPromptUsage: async (id: string): Promise<void> => {
+      try {
+          const promptRef = doc(db, "customPrompts", id);
+          await updateDoc(promptRef, {
+              usageCount: increment(1),
+              lastUsedAt: Date.now()
+          });
+      } catch (e) {
+          console.error("Record usage failed", e);
+      }
+  },
+
+  // Create placeholder user for email assignment
+  createPlaceholderUser: async (email: string, createdByAdminId: string): Promise<string> => {
+      const placeholderId = `placeholder_${crypto.randomUUID()}`;
+      const userData = {
+          uid: placeholderId,
+          email: email,
+          name: email.split('@')[0],
+          joinedAt: Date.now(),
+          lastLogin: null,
+          interactionCount: 0,
+          plan: 'FREE',
+          isPlaceholder: true,
+          createdByAdmin: createdByAdminId
+      };
+
+      try {
+          const userRef = doc(db, "users", placeholderId);
+          await setDoc(userRef, deepSanitize(userData));
+          return placeholderId;
+      } catch (e) {
+          console.error("Create placeholder user failed", e);
+          throw e;
       }
   }
 };

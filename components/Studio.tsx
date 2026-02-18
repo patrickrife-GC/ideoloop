@@ -13,6 +13,14 @@ interface StudioProps {
 
 // Updated Personalities: "Professional Inquiry"
 const STYLES_CONFIG: Record<InterviewStyle, { system: string; voice: string }> = {
+  'ONBOARDING': {
+    system: "You are a friendly onboarding assistant helping a new user set up their profile. Ask about their goals and what kind of content they want to create.",
+    voice: 'Kore'
+  },
+  'IDEA_PULL': {
+    system: "You are an expert interviewer helping surface one specific, non-obvious idea worth sharing today. Start by asking: What's been on your mind lately that you haven't talked about publicly yet? Then dig deeper with follow-up questions to extract a concrete, publishable insight.",
+    voice: 'Puck'
+  },
   'WIN_OF_WEEK': {
     system: "You are an investigative journalist. Your goal is to uncover the root cause of a recent success. Ask these 3 questions, but LISTEN closely. If the user gives a short answer, ask a follow-up 'Why?' or 'Tell me more about X' before moving to the next number. \n\n1. What’s something that worked better than expected recently? \n2. Why do you think it worked—what was the underlying insight? \n3. How might you replicate or amplify this?",
     voice: 'Kore'
@@ -412,7 +420,7 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
 
       {!isConnected && !errorMsg && (
          <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center flex-col text-white">
-            <div className="w-12 h-12 border-4 border-[#82ba90] border-t-transparent rounded-full animate-spin mb-4"></div>
+            <div className="w-12 h-12 border-4 border-[#1f3a2e] border-t-transparent rounded-full animate-spin mb-4"></div>
             <p>Connecting to AI Interviewer...</p>
          </div>
       )}
@@ -432,7 +440,7 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
             <div className="flex justify-between items-start">
                 <div className="bg-white/5 backdrop-blur-md rounded-lg px-4 py-2 border border-white/10 flex flex-col items-start gap-1">
                     <div className="flex items-center gap-2">
-                        <h2 className="text-white font-semibold text-sm tracking-wide uppercase text-[#82ba90]">
+                        <h2 className="text-white font-semibold text-sm tracking-wide uppercase text-[#6B9B7F]">
                             {interviewStyle.replace(/_/g, ' ')}
                         </h2>
                         <div className="flex items-center gap-2">
@@ -467,19 +475,19 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
              <div className="relative flex items-center justify-center">
                 
                 {/* Outer Aura (The "Glowing" Part) */}
-                <div className={`absolute rounded-full bg-[#82ba90] blur-3xl opacity-30 animate-pulse transition-all duration-700 ease-in-out ${aiSpeaking ? 'w-96 h-96' : 'w-64 h-64'}`}></div>
+                <div className={`absolute rounded-full bg-[#1f3a2e] blur-3xl opacity-30 animate-pulse transition-all duration-700 ease-in-out ${aiSpeaking ? 'w-96 h-96' : 'w-64 h-64'}`}></div>
                 
                 {/* Middle Ring */}
-                <div className={`absolute rounded-full border border-[#82ba90]/20 bg-[#82ba90]/5 animate-ping opacity-20 w-80 h-80`}></div>
+                <div className={`absolute rounded-full border border-[#1f3a2e]/20 bg-[#1f3a2e]/5 animate-ping opacity-20 w-80 h-80`}></div>
 
                 {/* The Core Orb (The "Opaque" Part) */}
-                <div className={`relative rounded-full bg-gradient-to-br from-white via-[#d1fae5] to-[#82ba90] shadow-[0_0_60px_rgba(130,186,144,0.6)] border border-white/40 overflow-hidden flex items-center justify-center transition-all duration-300 ${aiSpeaking ? 'w-40 h-40 scale-110' : 'w-32 h-32 scale-100'}`}>
+                <div className={`relative rounded-full bg-gradient-to-br from-white via-[#e8ede9] to-[#6B9B7F] shadow-[0_0_60px_rgba(31,58,46,0.6)] border border-white/40 overflow-hidden flex items-center justify-center transition-all duration-300 ${aiSpeaking ? 'w-40 h-40 scale-110' : 'w-32 h-32 scale-100'}`}>
                     
                     {/* Glossy Reflection */}
                     <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/90 to-transparent opacity-80 rounded-t-full"></div>
                     
                     {/* Inner Activity Animation */}
-                    <div className="absolute inset-0 bg-[#82ba90] opacity-20 animate-pulse"></div>
+                    <div className="absolute inset-0 bg-[#1f3a2e] opacity-20 animate-pulse"></div>
                     
                 </div>
              </div>
@@ -497,7 +505,7 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
             <div className="flex items-center gap-8 relative">
                  {/* Mic Input Visualizer */}
                  <div 
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none w-28 h-28 rounded-full border border-[#82ba90]/50 transition-all duration-75"
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none w-28 h-28 rounded-full border border-[#1f3a2e]/50 transition-all duration-75"
                     style={{ transform: `translate(-50%, -50%) scale(${1 + audioLevel * 3})`, opacity: audioLevel > 0.01 ? 1 : 0 }}
                  ></div>
 

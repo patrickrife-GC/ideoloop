@@ -12,13 +12,13 @@ export const Hero: React.FC<HeroProps> = ({ onGetStarted, onCreateCustom }) => {
       <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <div className="mb-8 flex justify-center">
-            <span className="rounded-full bg-[#82ba90]/10 px-3 py-1 text-sm font-semibold leading-6 text-[#82ba90] ring-1 ring-inset ring-[#82ba90]/30">
+            <span className="rounded-full bg-[#1f3a2e]/10 px-3 py-1 text-sm font-semibold leading-6 text-[#1f3a2e] ring-1 ring-inset ring-[#1f3a2e]/30">
               Powered by Gemini 2.5 Flash
             </span>
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
             Stop writing. <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#82ba90] to-emerald-600">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#1f3a2e] to-[#6B9B7F]">
               Start talking.
             </span>
           </h1>
@@ -29,13 +29,13 @@ export const Hero: React.FC<HeroProps> = ({ onGetStarted, onCreateCustom }) => {
           <div className="mt-10 flex items-center justify-center gap-x-6">
             <button
               onClick={onGetStarted}
-              className="relative z-10 rounded-md bg-[#82ba90] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#6da87a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#82ba90] transition-all"
+              className="relative z-10 rounded-md bg-[#1f3a2e] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#5a7968] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f3a2e] transition-all"
             >
               Start Interview
             </button>
             <button
               onClick={onCreateCustom}
-              className="relative z-10 text-sm font-semibold leading-6 text-gray-900 hover:text-[#82ba90] transition-colors"
+              className="relative z-10 text-sm font-semibold leading-6 text-gray-900 hover:text-[#E67E50] transition-colors"
             >
               Build Custom Template <span aria-hidden="true">→</span>
             </button>
@@ -45,7 +45,7 @@ export const Hero: React.FC<HeroProps> = ({ onGetStarted, onCreateCustom }) => {
       
       {/* Decorative background blobs */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-7xl pointer-events-none opacity-20 blur-3xl z-0">
-          <div className="aspect-[1100/600] w-full bg-gradient-to-tr from-[#82ba90] to-[#a7f3d0]" style={{clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)'}}></div>
+          <div className="aspect-[1100/600] w-full bg-gradient-to-tr from-[#1f3a2e] to-[#6B9B7F]" style={{clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)'}}></div>
       </div>
     </div>
   );

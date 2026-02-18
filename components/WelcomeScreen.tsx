@@ -27,7 +27,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <button
             onClick={onBegin}
-            className="w-full sm:w-auto rounded-full bg-[#82ba90] px-10 py-3 text-base font-semibold text-white shadow-sm hover:bg-[#6da87a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#82ba90] transition-all"
+            className="w-full sm:w-auto rounded-full bg-[#1f3a2e] px-10 py-3 text-base font-semibold text-white shadow-sm hover:bg-[#5a7968] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f3a2e] transition-all"
           >
             Begin New Session
           </button>
@@ -62,7 +62,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
       
       {/* Subtle Background Accent */}
-      <div className="fixed bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#82ba90] to-transparent opacity-50 z-0"></div>
+      <div className="fixed bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#1f3a2e] to-transparent opacity-50 z-0"></div>
     </div>
   );
 };

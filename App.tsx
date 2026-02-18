@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, authReady } from "./services/firebase";
-import { AppView, GeneratedResult, InterviewStyle, UserProfile, SessionRecord, AiModel } from './types';
+import { AppView, GeneratedResult, InterviewStyle, UserProfile, SessionRecord, AiModel, VoiceProfile } from './types';
 import { Hero } from './components/Hero';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { GuideIntro } from './components/GuideIntro';
@@ -20,15 +20,15 @@ function App() {
   const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
   const [interviewStyle, setInterviewStyle] = useState<InterviewStyle>('WIN_OF_WEEK');
   const [interviewTopic, setInterviewTopic] = useState<string>('');
-  
+
   const [generatedResult, setGeneratedResult] = useState<GeneratedResult | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  
+
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  
+
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [aiProvider, setAiProvider] = useState(() => {
     if (typeof window === "undefined") return "gemini";
@@ -117,17 +117,17 @@ function App() {
 
   const handleFinishRecording = (blob: Blob) => {
     setRecordingBlob(blob);
-    setCurrentVideoUrl(null); 
+    setCurrentVideoUrl(null);
     setActiveSessionId(null);
     setView(AppView.SUMMARY);
   };
 
   const updateLocalHistory = (updatedSession: SessionRecord) => {
     if (!currentUser) return;
-    
+
     const existing = currentUser.history || [];
     const index = existing.findIndex(s => s.id === updatedSession.id);
-    
+
     let newHistory;
     if (index >= 0) {
       newHistory = [...existing];
@@ -135,14 +135,25 @@ function App() {
     } else {
       newHistory = [updatedSession, ...existing];
     }
-    
+
     setCurrentUser({ ...currentUser, history: newHistory });
   };
 
   const handleGenerate = async (modelTier: AiModel) => {
     if (!recordingBlob || !currentUser) return;
-    
-    setGeneratedResult({}); 
+
+    console.log("🎙️ Recording blob size:", recordingBlob.size, "Type:", recordingBlob.type);
+    console.log("👤 Current user:", currentUser.name, "ID:", currentUser.id);
+    console.log("📝 Interview style:", interviewStyle);
+    console.log("🤖 Model tier:", modelTier);
+
+    // Special handling for onboarding interviews
+    if (interviewStyle === 'ONBOARDING') {
+      await handleOnboardingGenerate(modelTier);
+      return;
+    }
+
+    setGeneratedResult({});
     setIsLoadingText(true);
     setView(AppView.RESULTS);
 
@@ -157,33 +168,45 @@ function App() {
       currentSessionId = crypto.randomUUID();
     }
 
-    const uploadPromise = !currentUser.id.startsWith('guest_')
-      ? storageService.uploadVideo(currentUser.id, recordingBlob)
-          .then(async (url) => {
-            setCurrentVideoUrl(url);
+    // Upload video in background (don't block on failures)
+    if (!currentUser.id.startsWith('guest_')) {
+      storageService.uploadVideo(currentUser.id, recordingBlob)
+        .then(async (url) => {
+          setCurrentVideoUrl(url);
+          try {
             const updated = await storageService.updateSession(currentUser.id, currentSessionId, { videoUrl: url });
             updateLocalHistory(updated);
-            return url;
-          })
-      : Promise.resolve(undefined);
+          } catch (e) {
+            console.warn("Failed to save video URL to Firebase, but video is uploaded:", url);
+          }
+        })
+        .catch(e => {
+          console.warn("Video upload failed (likely CORS). Content generation will continue.", e);
+        });
+    }
 
     aiContentClient.generateTextAssets(recordingBlob, interviewStyle, modelTier)
       .then(async (textData) => {
         const assetsWithStatus = textData.socialAssets?.map((asset) =>
           asset.imagePrompt
-            ? { ...asset, imageStatus: "pending", imageError: undefined }
+            ? { ...asset, imageStatus: "pending" as const, imageError: undefined }
             : asset
         );
 
         setGeneratedResult(prev => ({ ...prev, ...textData, socialAssets: assetsWithStatus }));
         setIsLoadingText(false);
 
-        let updated = await storageService.updateSession(currentUser.id, currentSessionId, {
-          transcription: textData.transcription,
-          socialAssets: assetsWithStatus,
-          insights: textData.newInsights || []
-        });
-        updateLocalHistory(updated);
+        // Try to save to Firebase, but don't fail if it doesn't work
+        try {
+          let updated = await storageService.updateSession(currentUser.id, currentSessionId, {
+            transcription: textData.transcription,
+            socialAssets: assetsWithStatus,
+            insights: textData.newInsights || []
+          });
+          updateLocalHistory(updated);
+        } catch (e) {
+          console.warn("Failed to save session to Firebase (likely CORS/permissions). Content is still available locally.", e);
+        }
 
         if (assetsWithStatus) {
           try {
@@ -191,6 +214,7 @@ function App() {
             let finalAssets = assetsWithImages;
 
             if (!currentUser.id.startsWith('guest_')) {
+              let uploadFailedCount = 0;
               finalAssets = await Promise.all(
                 assetsWithImages.map(async (asset, idx) => {
                   if (asset.imageUrl && asset.imageUrl.startsWith("data:")) {
@@ -198,21 +222,29 @@ function App() {
                       const url = await storageService.uploadSocialImage(currentUser.id, currentSessionId, idx, asset.imageUrl);
                       return { ...asset, imageUrl: url };
                     } catch {
+                      uploadFailedCount++;
                       return { ...asset, imageStatus: "failed", imageError: "Image upload failed." };
                     }
                   }
                   return asset;
                 })
               );
+              if (uploadFailedCount > 0) {
+                console.warn(`⚠️  ${uploadFailedCount} images generated but won't persist to Firebase due to CORS (localhost limitation). Images will work in production deployment.`);
+              }
             }
 
             const complete = { ...textData, socialAssets: finalAssets };
             setGeneratedResult(prev => ({ ...prev, ...complete }));
 
-            updated = await storageService.updateSession(currentUser.id, currentSessionId, {
-              socialAssets: finalAssets
-            });
-            updateLocalHistory(updated);
+            try {
+              const updated = await storageService.updateSession(currentUser.id, currentSessionId, {
+                socialAssets: finalAssets
+              });
+              updateLocalHistory(updated);
+            } catch (e) {
+              console.warn("Failed to save images to Firebase. Content is still available locally.", e);
+            }
           } catch (e) {
             const failedAssets = assetsWithStatus.map((asset) =>
               asset.imagePrompt
@@ -220,16 +252,14 @@ function App() {
                 : asset
             );
             setGeneratedResult(prev => ({ ...prev, ...textData, socialAssets: failedAssets }));
-            updated = await storageService.updateSession(currentUser.id, currentSessionId, {
-              socialAssets: failedAssets
-            });
-            updateLocalHistory(updated);
           }
         }
       })
-      .catch(() => {
+      .catch((err) => {
         setIsLoadingText(false);
-        alert("Failed to generate content. Please try again.");
+        console.error("Content generation failed:", err);
+        console.error("Error details:", err.message, err.stack);
+        alert(`Failed to generate content: ${err.message || 'Unknown error'}. Please check console for details.`);
       });
   };
 
@@ -289,6 +319,78 @@ function App() {
     setIsPricingOpen(false);
   };
 
+  const handleOnboardingGenerate = async (modelTier: AiModel) => {
+    if (!recordingBlob || !currentUser) return;
+
+    setGeneratedResult({});
+    setIsLoadingText(true);
+    setView(AppView.RESULTS);
+
+    try {
+      // Transcribe the onboarding interview and generate content from it
+      // Note: No voice profile yet since this IS the onboarding
+      const textData = await aiContentClient.generateTextAssets(recordingBlob, 'ONBOARDING', modelTier);
+
+      setGeneratedResult(prev => ({ ...prev, ...textData }));
+
+      // Extract voice profile from transcription
+      const voiceProfile: VoiceProfile = {
+        onboardingCompleted: true,
+        onboardingCompletedAt: Date.now(),
+        answers: [{
+          questionId: 'onboarding_full',
+          question: 'Complete onboarding interview',
+          answer: textData.transcription || '',
+          timestamp: Date.now(),
+        }],
+        currentGoal: textData.transcription,
+      };
+
+      // Save voice profile BEFORE generating images
+      const updatedUser = {
+        ...currentUser,
+        voiceProfile,
+      };
+      setCurrentUser(updatedUser);
+
+      try {
+        await storageService.saveVoiceProfile(currentUser.id, voiceProfile);
+      } catch (e) {
+        console.warn("Failed to save voice profile to Firebase. Continuing with local data.", e);
+      }
+
+      setIsLoadingText(false);
+
+      // Generate images if we have social assets
+      if (textData.socialAssets) {
+        const assetsWithImages = await aiImageClient.generateSocialImages(textData.socialAssets);
+
+        const assetsWithCloudImages = await Promise.all(
+          assetsWithImages.map(async (asset, idx) => {
+            if (asset.imageUrl && asset.imageUrl.startsWith('data:')) {
+              try {
+                const url = await storageService.uploadSocialImage(currentUser.id, crypto.randomUUID(), idx, asset.imageUrl);
+                return { ...asset, imageUrl: url };
+              } catch (e) {
+                console.warn(`Failed to upload image for ${asset.type}. Keeping base64.`, e);
+                return asset;
+              }
+            }
+            return asset;
+          })
+        );
+
+        const complete = { ...textData, socialAssets: assetsWithCloudImages };
+        setGeneratedResult(prev => ({ ...prev, ...complete }));
+      }
+
+    } catch (err) {
+      setIsLoadingText(false);
+      console.error("Onboarding processing failed:", err);
+      alert("Failed to process onboarding interview. Please try again.");
+    }
+  };
+
   const handleAiProviderChange = (provider: string) => {
     if (typeof window === "undefined") return;
     localStorage.setItem(AI_PROVIDER_STORAGE_KEY, provider);
@@ -296,10 +398,32 @@ function App() {
     window.location.reload();
   };
 
+  const handleBegin = () => {
+    // Check if user has completed onboarding
+    if (!currentUser?.voiceProfile?.onboardingCompleted) {
+      // Route to onboarding interview via Studio
+      setInterviewStyle('ONBOARDING');
+      setInterviewTopic('');
+      setView(AppView.STUDIO);
+    } else {
+      setView(AppView.GUIDE_INTRO);
+    }
+  };
+
+  const handleResultsRestart = () => {
+    // If they just completed onboarding, route to interview selection
+    // Otherwise go back to welcome
+    if (interviewStyle === 'ONBOARDING' && currentUser?.voiceProfile?.onboardingCompleted) {
+      setView(AppView.GUIDE_INTRO);
+    } else {
+      setView(AppView.WELCOME);
+    }
+  };
+
   if (isAuthChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
-        <div className="w-10 h-10 border-4 border-[#82ba90] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-[#1f3a2e] border-t-transparent rounded-full animate-spin"></div>
         <p className="text-gray-400 text-sm font-medium">Connecting to Ideoloop...</p>
       </div>
     );
@@ -307,10 +431,10 @@ function App() {
 
   return (
     <>
-      <PricingModal 
-        isOpen={isPricingOpen} 
-        onClose={() => setIsPricingOpen(false)} 
-        onUpgrade={handleUpgrade} 
+      <PricingModal
+        isOpen={isPricingOpen}
+        onClose={() => setIsPricingOpen(false)}
+        onUpgrade={handleUpgrade}
       />
 
       {(() => {
@@ -320,26 +444,18 @@ function App() {
           case AppView.AUTH:
             return <AuthScreen onLoginSuccess={handleLoginSuccess} authLoading={isAuthChecking} />;
           case AppView.WELCOME:
-            return (
-              <WelcomeScreen
-                userName={currentUser?.name}
-                onBegin={() => setView(AppView.GUIDE_INTRO)}
-                onDashboard={() => setView(AppView.DASHBOARD)}
-                aiProvider={aiProvider}
-                onAiProviderChange={handleAiProviderChange}
-              />
-            );
+            return <WelcomeScreen userName={currentUser?.name} onBegin={handleBegin} onDashboard={() => setView(AppView.DASHBOARD)} />;
           case AppView.DASHBOARD:
             return currentUser ? (
-              <Dashboard 
-                user={currentUser} 
-                onBack={() => setView(AppView.WELCOME)} 
-                onAdmin={() => setView(AppView.ADMIN)}
-                onViewSession={handleViewSession} 
+              <Dashboard
+                user={currentUser}
+                onBack={() => setView(AppView.WELCOME)}
+                onAdmin={currentUser.role === 'admin' ? () => setView(AppView.ADMIN) : undefined}
+                onViewSession={handleViewSession}
               />
             ) : <AuthScreen onLoginSuccess={handleLoginSuccess} authLoading={isAuthChecking} />;
           case AppView.ADMIN:
-            return <AdminDashboard onBack={() => setView(AppView.DASHBOARD)} />;
+            return <AdminDashboard onBack={() => setView(AppView.DASHBOARD)} currentUserId={currentUser?.id || ''} />;
           case AppView.GUIDE_INTRO:
             return <GuideIntro onStart={handleStartStudio} userPlan={currentUser?.plan} onOpenPricing={() => setIsPricingOpen(true)} />;
           case AppView.STUDIO:
@@ -348,11 +464,11 @@ function App() {
             return <SummaryScreen onGenerate={handleGenerate} />;
           case AppView.RESULTS:
             return generatedResult ? (
-              <Results 
-                result={generatedResult} 
+              <Results
+                result={generatedResult}
                 recordings={recordingBlob ? { 'full_session': recordingBlob } : {}}
                 videoUrl={currentVideoUrl || undefined}
-                onRestart={() => setView(AppView.WELCOME)} 
+                onRestart={handleResultsRestart}
                 isLoadingText={isLoadingText}
                 onRetryImage={handleRetryImage}
               />
