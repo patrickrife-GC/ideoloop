@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, getRedirectResult } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { auth, authReady } from "./services/firebase";
 import { AppView, GeneratedResult, InterviewStyle, UserProfile, SessionRecord, AiModel } from './types';
 import { Hero } from './components/Hero';
@@ -12,7 +12,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { PricingModal } from './components/PricingModal';
-import { generateTextAssets, generateSocialImages } from './services/geminiService';
+import { aiContentClient, aiImageClient, AI_PROVIDER_STORAGE_KEY } from './services/ai';
 import { storageService } from './services/storageService';
 
 function App() {
@@ -30,9 +30,13 @@ function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [aiProvider, setAiProvider] = useState(() => {
+    if (typeof window === "undefined") return "gemini";
+    return localStorage.getItem(AI_PROVIDER_STORAGE_KEY) || process.env.AI_PROVIDER || "gemini";
+  });
 
   // ---------------------------
-  // 🔥 MAIN AUTH / REDIRECT LOGIC
+  // 🔥 MAIN AUTH LOGIC
   // ---------------------------
   useEffect(() => {
     console.log("App mounted, initializing auth listener...");
@@ -46,17 +50,7 @@ function App() {
     authReady.then(() => {
       if (!isMounted) return;
 
-      // 1️⃣ Handle Google redirect callback (after signInWithRedirect)
-      getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            console.log("Google redirect success:", result.user);
-            handleLoginSuccess(result.user);
-          }
-        })
-        .catch((err) => console.error("Google redirect error:", err));
-
-      // 2️⃣ Real-time Firebase auth listener
+      // 1️⃣ Real-time Firebase auth listener
       unsubscribe = onAuthStateChanged(auth, async (user) => {
         console.log("Auth listener fired. User =", user);
 
@@ -173,28 +167,64 @@ function App() {
           })
       : Promise.resolve(undefined);
 
-    generateTextAssets(recordingBlob, interviewStyle, modelTier)
+    aiContentClient.generateTextAssets(recordingBlob, interviewStyle, modelTier)
       .then(async (textData) => {
-        setGeneratedResult(prev => ({ ...prev, ...textData }));
+        const assetsWithStatus = textData.socialAssets?.map((asset) =>
+          asset.imagePrompt
+            ? { ...asset, imageStatus: "pending", imageError: undefined }
+            : asset
+        );
+
+        setGeneratedResult(prev => ({ ...prev, ...textData, socialAssets: assetsWithStatus }));
         setIsLoadingText(false);
 
         let updated = await storageService.updateSession(currentUser.id, currentSessionId, {
           transcription: textData.transcription,
-          socialAssets: textData.socialAssets,
+          socialAssets: assetsWithStatus,
           insights: textData.newInsights || []
         });
         updateLocalHistory(updated);
 
-        if (textData.socialAssets) {
-          const assetsWithImages = await generateSocialImages(textData.socialAssets);
-          const complete = { ...textData, socialAssets: assetsWithImages };
+        if (assetsWithStatus) {
+          try {
+            const assetsWithImages = await aiImageClient.generateSocialImages(assetsWithStatus);
+            let finalAssets = assetsWithImages;
 
-          setGeneratedResult(prev => ({ ...prev, ...complete }));
+            if (!currentUser.id.startsWith('guest_')) {
+              finalAssets = await Promise.all(
+                assetsWithImages.map(async (asset, idx) => {
+                  if (asset.imageUrl && asset.imageUrl.startsWith("data:")) {
+                    try {
+                      const url = await storageService.uploadSocialImage(currentUser.id, currentSessionId, idx, asset.imageUrl);
+                      return { ...asset, imageUrl: url };
+                    } catch {
+                      return { ...asset, imageStatus: "failed", imageError: "Image upload failed." };
+                    }
+                  }
+                  return asset;
+                })
+              );
+            }
 
-          updated = await storageService.updateSession(currentUser.id, currentSessionId, {
-            socialAssets: assetsWithImages
-          });
-          updateLocalHistory(updated);
+            const complete = { ...textData, socialAssets: finalAssets };
+            setGeneratedResult(prev => ({ ...prev, ...complete }));
+
+            updated = await storageService.updateSession(currentUser.id, currentSessionId, {
+              socialAssets: finalAssets
+            });
+            updateLocalHistory(updated);
+          } catch (e) {
+            const failedAssets = assetsWithStatus.map((asset) =>
+              asset.imagePrompt
+                ? { ...asset, imageStatus: "failed", imageError: "Image generation failed." }
+                : asset
+            );
+            setGeneratedResult(prev => ({ ...prev, ...textData, socialAssets: failedAssets }));
+            updated = await storageService.updateSession(currentUser.id, currentSessionId, {
+              socialAssets: failedAssets
+            });
+            updateLocalHistory(updated);
+          }
         }
       })
       .catch(() => {
@@ -215,9 +245,55 @@ function App() {
     setView(AppView.RESULTS);
   };
 
+  const handleRetryImage = async (index: number) => {
+    if (!generatedResult?.socialAssets || !currentUser || !activeSessionId) return;
+    const target = generatedResult.socialAssets[index];
+    if (!target?.imagePrompt) return;
+
+    const pendingAssets = [...generatedResult.socialAssets];
+    pendingAssets[index] = { ...target, imageStatus: "pending", imageError: undefined, imageUrl: undefined };
+    setGeneratedResult(prev => (prev ? { ...prev, socialAssets: pendingAssets } : prev));
+
+    try {
+      const [regenerated] = await aiImageClient.generateSocialImages([pendingAssets[index]]);
+      let finalAsset = regenerated;
+
+      if (!currentUser.id.startsWith('guest_') && finalAsset.imageUrl?.startsWith("data:")) {
+        try {
+          const url = await storageService.uploadSocialImage(currentUser.id, activeSessionId, index, finalAsset.imageUrl);
+          finalAsset = { ...finalAsset, imageUrl: url };
+        } catch {
+          finalAsset = { ...finalAsset, imageStatus: "failed", imageError: "Image upload failed." };
+        }
+      }
+
+      const merged = [...pendingAssets];
+      merged[index] = finalAsset;
+      setGeneratedResult(prev => (prev ? { ...prev, socialAssets: merged } : prev));
+
+      if (!currentUser.id.startsWith('guest_')) {
+        const updated = await storageService.updateSession(currentUser.id, activeSessionId, {
+          socialAssets: merged
+        });
+        updateLocalHistory(updated);
+      }
+    } catch {
+      const merged = [...pendingAssets];
+      merged[index] = { ...pendingAssets[index], imageStatus: "failed", imageError: "Image generation failed." };
+      setGeneratedResult(prev => (prev ? { ...prev, socialAssets: merged } : prev));
+    }
+  };
+
   const handleUpgrade = () => {
     alert("Billing integration coming soon! You will be redirected to Stripe.");
     setIsPricingOpen(false);
+  };
+
+  const handleAiProviderChange = (provider: string) => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(AI_PROVIDER_STORAGE_KEY, provider);
+    setAiProvider(provider);
+    window.location.reload();
   };
 
   if (isAuthChecking) {
@@ -244,7 +320,15 @@ function App() {
           case AppView.AUTH:
             return <AuthScreen onLoginSuccess={handleLoginSuccess} authLoading={isAuthChecking} />;
           case AppView.WELCOME:
-            return <WelcomeScreen userName={currentUser?.name} onBegin={() => setView(AppView.GUIDE_INTRO)} onDashboard={() => setView(AppView.DASHBOARD)} />;
+            return (
+              <WelcomeScreen
+                userName={currentUser?.name}
+                onBegin={() => setView(AppView.GUIDE_INTRO)}
+                onDashboard={() => setView(AppView.DASHBOARD)}
+                aiProvider={aiProvider}
+                onAiProviderChange={handleAiProviderChange}
+              />
+            );
           case AppView.DASHBOARD:
             return currentUser ? (
               <Dashboard 
@@ -270,6 +354,7 @@ function App() {
                 videoUrl={currentVideoUrl || undefined}
                 onRestart={() => setView(AppView.WELCOME)} 
                 isLoadingText={isLoadingText}
+                onRetryImage={handleRetryImage}
               />
             ) : null;
           default:

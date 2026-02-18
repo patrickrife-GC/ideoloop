@@ -35,6 +35,8 @@ export interface SocialContent {
   hashtags?: string[];
   imagePrompt?: string; // The text description for the AI artist
   imageUrl?: string; // The generated base64 image
+  imageStatus?: 'pending' | 'ready' | 'failed';
+  imageError?: string;
 }
 
 export interface UserInsight {

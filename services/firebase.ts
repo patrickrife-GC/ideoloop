@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
-  GoogleAuthProvider,
   onAuthStateChanged
 } from "firebase/auth";
 import { 
@@ -10,12 +9,13 @@ import {
 import { 
   getStorage 
 } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBJN0Tgt8nc1LTCyNYSWmJ4XsPq1LKza18",
   authDomain: "ideoloop-webapp.firebaseapp.com",
   projectId: "ideoloop-webapp",
-  storageBucket: "ideoloop-webapp.appspot.com",
+  storageBucket: "ideoloop-webapp.firebasestorage.app",
   messagingSenderId: "259434637786",
   appId: "1:259434637786:web:c0828d61cf830d4e49b8e3"
 };
@@ -35,14 +35,11 @@ export const authReady = new Promise<void>((resolve) => {
   });
 });
 
-// Google Provider
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: "select_account",
-});
-
 // Firestore (needed for storageService)
 export const db = getFirestore(app);
 
 // Storage (your uploads expect this)
 export const storage = getStorage(app);
+
+// Functions (server proxy)
+export const functions = getFunctions(app, "us-central1");

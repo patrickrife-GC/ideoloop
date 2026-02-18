@@ -10,6 +10,7 @@ interface ResultsProps {
   videoUrl?: string; // fallback for cloud playback
   onRestart: () => void;
   isLoadingText?: boolean;
+  onRetryImage?: (index: number) => void;
 }
 
 const TypeLabel = ({ type }: { type: string }) => {
@@ -31,7 +32,14 @@ const SkeletonPulse = ({ className }: { className?: string }) => (
     <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
 );
 
-export const Results: React.FC<ResultsProps> = ({ result, recordings, videoUrl, onRestart, isLoadingText }) => {
+export const Results: React.FC<ResultsProps> = ({
+  result,
+  recordings,
+  videoUrl,
+  onRestart,
+  isLoadingText,
+  onRetryImage
+}) => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
@@ -181,9 +189,25 @@ export const Results: React.FC<ResultsProps> = ({ result, recordings, videoUrl, 
                             </div>
                         )}
                         
-                        {!asset.imageUrl && asset.imagePrompt && (
+                        {!asset.imageUrl && asset.imagePrompt && asset.imageStatus !== "failed" && (
                              <div className="md:col-span-1 border border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 p-6">
                                  <p className="text-xs text-gray-400 text-center animate-pulse">Generating visual...</p>
+                             </div>
+                        )}
+
+                        {!asset.imageUrl && asset.imagePrompt && asset.imageStatus === "failed" && (
+                             <div className="md:col-span-1 border border-dashed border-red-200 rounded-lg flex flex-col items-center justify-center bg-red-50 p-6 gap-3">
+                                 <p className="text-xs text-red-600 text-center">
+                                   {asset.imageError || "Image generation failed."}
+                                 </p>
+                                 {onRetryImage && (
+                                   <button
+                                     onClick={() => onRetryImage(idx)}
+                                     className="text-xs font-semibold text-red-700 underline underline-offset-4 hover:text-red-900"
+                                   >
+                                     Retry image
+                                   </button>
+                                 )}
                              </div>
                         )}
                     </div>

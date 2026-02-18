@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
 import { InterviewStyle, UserProfile } from '../types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToUint8Array } from '../services/audioUtils';
+import { aiLiveClient } from '../services/ai';
 
 interface StudioProps {
   interviewStyle: InterviewStyle;
@@ -60,6 +60,12 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
   
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const nextStartTimeRef = useRef<number>(0);
+  const aiSpeakingTimeoutRef = useRef<number | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingStartSignalRef = useRef(false);
+  const connectionTimeoutRef = useRef<number | null>(null);
+  const connectAttemptRef = useRef(0);
+  const isConnectedRef = useRef(false);
 
   // Active voice config
   const activeVoice = STYLES_CONFIG[interviewStyle].voice;
@@ -69,6 +75,13 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
 
     const init = async () => {
       try {
+        const attemptId = ++connectAttemptRef.current;
+        isConnectedRef.current = false;
+        if (aiLiveClient.providerId !== "gemini" && aiLiveClient.providerId !== "openai") {
+          setErrorMsg("Live interviews are unavailable for this provider.");
+          return;
+        }
+
         // AUDIO ONLY REQUEST
         const stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
@@ -98,7 +111,6 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
         try { if (outputCtx.state === 'suspended') await outputCtx.resume(); } catch(e) {}
 
         const styleConfig = STYLES_CONFIG[interviewStyle];
-        const client = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         // INJECT USER MEMORY & TOPIC
         let dynamicSystemInstruction = styleConfig.system;
@@ -124,21 +136,53 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
         - Ask one question at a time.
         - Use professional curiosity, not fake enthusiasm.`;
 
-        const sessionPromise = client.live.connect({
-          model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: styleConfig.voice } }
-            },
-            systemInstruction: dynamicSystemInstruction,
-          },
+        const liveModel =
+          aiLiveClient.providerId === "openai"
+            ? "gpt-4o-realtime-preview-2024-12-17"
+            : "gemini-2.5-flash-native-audio-preview-09-2025";
+
+        const liveVoice = aiLiveClient.providerId === "openai" ? "alloy" : styleConfig.voice;
+
+        const sessionPromise = aiLiveClient.connectLiveAudio({
+          model: liveModel,
+          responseModalities: ["AUDIO"],
+          voice: liveVoice,
+          systemInstruction: dynamicSystemInstruction,
+          localStream: streamRef.current || undefined,
           callbacks: {
             onopen: () => {
-              console.log("Gemini Live Connected");
+              if (connectAttemptRef.current !== attemptId) return;
+              console.log("Live Connected");
               setIsConnected(true);
+              isConnectedRef.current = true;
+              if (connectionTimeoutRef.current) {
+                window.clearTimeout(connectionTimeoutRef.current);
+                connectionTimeoutRef.current = null;
+              }
+              sessionPromiseRef.current?.then((session) => {
+                session.sendRealtimeInput({
+                  text: "System: IMMEDIATELY ask the first question in your sequence now. Do not greet them."
+                });
+              });
+              if (pendingStartSignalRef.current) {
+                pendingStartSignalRef.current = false;
+                sessionPromiseRef.current?.then((session) => {
+                  session.sendRealtimeInput({
+                    text: "System: The user has started recording. IMMEDIATELY ask the first question in your sequence now. Do not greet them."
+                  });
+                });
+              }
             },
             onmessage: async (msg: any) => {
+              if (aiLiveClient.providerId === "openai") {
+                if (msg?.type && String(msg.type).includes("response.audio")) {
+                  setAiSpeaking(true);
+                  if (aiSpeakingTimeoutRef.current) window.clearTimeout(aiSpeakingTimeoutRef.current);
+                  aiSpeakingTimeoutRef.current = window.setTimeout(() => setAiSpeaking(false), 1200);
+                }
+                return;
+              }
+
               const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
               if (audioData) {
                 setAiSpeaking(true);
@@ -174,21 +218,52 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
                 };
               }
             },
-            onclose: () => setIsConnected(false),
+            onclose: () => {
+              if (connectAttemptRef.current !== attemptId) return;
+              setIsConnected(false);
+              isConnectedRef.current = false;
+              sessionPromiseRef.current = null;
+              setErrorMsg("Live connection closed. Please try again.");
+            },
             onerror: (err: any) => {
               console.error("Gemini Live Error:", err);
+              if (connectionTimeoutRef.current) {
+                window.clearTimeout(connectionTimeoutRef.current);
+                connectionTimeoutRef.current = null;
+              }
               if (!isRecording) {
                  const msg = err.message || JSON.stringify(err);
                  if (msg.includes('unavailable') || msg.includes('503')) {
                     setErrorMsg("AI Service is currently overloaded/unavailable. Please try again in a moment.");
                  } else {
-                    setErrorMsg("Connection to AI assistant failed.");
+                    setErrorMsg(aiLiveClient.providerId === "openai"
+                      ? "OpenAI live session failed to connect. Please try again."
+                      : "Connection to AI assistant failed.");
                  }
               }
-            }
+            },
+            ontrack: (stream: MediaStream) => {
+              if (remoteAudioRef.current) {
+                remoteAudioRef.current.srcObject = stream;
+                remoteAudioRef.current.muted = false;
+                remoteAudioRef.current.volume = 1;
+                remoteAudioRef.current.play().catch(() => {});
+              }
+            },
           }
         });
         sessionPromiseRef.current = sessionPromise;
+
+        connectionTimeoutRef.current = window.setTimeout(() => {
+          if (connectAttemptRef.current !== attemptId) return;
+          if (!isConnectedRef.current) {
+            setErrorMsg(
+              aiLiveClient.providerId === "openai"
+                ? "OpenAI live session timed out. Please try again."
+                : "Connecting to AI interviewer timed out. Please try again."
+            );
+          }
+        }, 12000);
 
         // Connect Mic -> Input Context -> Processor
         const source = inputCtx.createMediaStreamSource(stream);
@@ -202,6 +277,9 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
            let sum = 0;
            for(let i=0; i<inputData.length; i++) sum += inputData[i] * inputData[i];
            setAudioLevel(Math.sqrt(sum / inputData.length));
+
+           if (aiLiveClient.providerId === "openai") return;
+           if (!isConnectedRef.current) return;
 
            const int16Data = float32To16BitPCM(inputData);
            const b64Data = arrayBufferToBase64(int16Data.buffer);
@@ -218,9 +296,16 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
         source.connect(processor);
         processor.connect(inputCtx.destination); 
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Setup failed", err);
-        setErrorMsg("Failed to access microphone. Please ensure permissions are granted.");
+        const message = err?.message ? String(err.message) : "";
+        if (message.toLowerCase().includes("api key")) {
+          setErrorMsg("Missing AI API key. Set AI_API_KEY (or GEMINI_API_KEY) in .env.local.");
+        } else if (message.toLowerCase().includes("openai")) {
+          setErrorMsg(message);
+        } else {
+          setErrorMsg("Failed to access microphone. Please ensure permissions are granted.");
+        }
       }
     };
 
@@ -228,10 +313,21 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
 
     return () => {
       cleanup = true;
+      connectAttemptRef.current += 1;
+      isConnectedRef.current = false;
       if (processorRef.current) {
         processorRef.current.disconnect();
         processorRef.current = null;
       }
+      if (aiSpeakingTimeoutRef.current) {
+        window.clearTimeout(aiSpeakingTimeoutRef.current);
+        aiSpeakingTimeoutRef.current = null;
+      }
+      if (connectionTimeoutRef.current) {
+        window.clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+      sessionPromiseRef.current = null;
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       if (inputContextRef.current) inputContextRef.current.close();
       if (outputContextRef.current) outputContextRef.current.close();
@@ -286,6 +382,8 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
                   text: "System: The user has started recording. IMMEDIATELY ask the first question in your sequence now. Do not greet them."
               });
           });
+      } else if (aiLiveClient.providerId === "openai") {
+          pendingStartSignalRef.current = true;
       }
       timerRef.current = window.setInterval(() => setRecordingTime(prev => prev + 1), 1000);
     } catch (e) {
@@ -310,6 +408,7 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
 
   return (
     <div className="relative h-[100dvh] bg-gradient-to-b from-gray-900 to-black overflow-hidden flex flex-col">
+      <audio ref={remoteAudioRef} autoPlay className="hidden" />
 
       {!isConnected && !errorMsg && (
          <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center flex-col text-white">

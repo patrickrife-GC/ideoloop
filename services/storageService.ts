@@ -6,6 +6,19 @@ import { User } from "firebase/auth";
 
 const STORAGE_KEY_PREFIX = 'ideoloop_user_';
 
+const dataUrlToBlob = (dataUrl: string) => {
+    const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
+    if (!match) throw new Error("Invalid data URL.");
+    const mimeType = match[1];
+    const base64Data = match[2];
+    const binary = atob(base64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType });
+};
+
 // --- UTILITY: Deep Sanitize ---
 // Firestore crashes if any field is 'undefined'. This recursively turns undefined -> null.
 const deepSanitize = (obj: any): any => {
@@ -132,6 +145,20 @@ export const storageService = {
       } catch (e) {
           console.error("Upload failed", e);
           throw e;
+      }
+  },
+
+  uploadSocialImage: async (uid: string, sessionId: string, index: number, dataUrl: string): Promise<string> => {
+      try {
+        const blob = dataUrlToBlob(dataUrl);
+        const extension = blob.type.split("/")[1] || "png";
+        const filename = `sessions/${uid}/${sessionId}/image_${index}_${Date.now()}.${extension}`;
+        const storageRef = ref(storage, filename);
+        const snapshot = await uploadBytes(storageRef, blob);
+        return await getDownloadURL(snapshot.ref);
+      } catch (e) {
+        console.error("Image upload failed", e);
+        throw e;
       }
   },
 
