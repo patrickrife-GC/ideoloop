@@ -1,7 +1,8 @@
 import { initializeApp } from "firebase/app";
-import { 
-  getAuth, 
-  onAuthStateChanged
+import {
+  getAuth,
+  onAuthStateChanged,
+  GoogleAuthProvider
 } from "firebase/auth";
 import { 
   getFirestore 
@@ -26,6 +27,7 @@ export const app = initializeApp(firebaseConfig);
 // Auth
 export const auth = getAuth(app);
 auth.useDeviceLanguage();
+export const googleProvider = new GoogleAuthProvider();
 
 // Resolve once Firebase finishes initial auth state check.
 export const authReady = new Promise<void>((resolve) => {
