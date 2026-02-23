@@ -13,12 +13,12 @@ import {
 import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBJN0Tgt8nc1LTCyNYSWmJ4XsPq1LKza18",
-  authDomain: "ideoloop-webapp.firebaseapp.com",
-  projectId: "ideoloop-webapp",
-  storageBucket: "ideoloop-webapp.firebasestorage.app",
-  messagingSenderId: "259434637786",
-  appId: "1:259434637786:web:c0828d61cf830d4e49b8e3"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase

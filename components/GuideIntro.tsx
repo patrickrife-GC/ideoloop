@@ -38,19 +38,19 @@ const INTERVIEW_STYLES: (Partial<InterviewConfig> & { isPro: boolean })[] = [
     id: 'DECISION_IN_PROGRESS',
     title: 'Decision in Progress',
     description: 'Clarify options, tradeoffs, and the smallest next test to get unstuck.',
-    isPro: true,
+    isPro: false,
   },
   {
     id: 'PATTERN_RECOGNITION',
     title: 'Pattern Recognition',
     description: 'Separate signal from noise and turn it into a concrete move or boundary.',
-    isPro: true,
+    isPro: false,
   },
   {
     id: 'ENERGY_CHECK',
     title: 'Energy Check',
     description: 'Diagnose what gives energy vs. drains you and what to redesign.',
-    isPro: true,
+    isPro: false,
   }
 ];
 

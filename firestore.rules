@@ -1,24 +1,25 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     // User profiles
     match /users/{userId} {
       // Users can read/write their own profile
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      
+
       // Admin can read/write all user profiles
       allow read, write: if request.auth != null && request.auth.token.email == 'patrickrife@gmail.com';
-      
+
       // Sessions subcollection
       match /sessions/{sessionId} {
         // Users can read/write their own sessions
         allow read, write: if request.auth != null && request.auth.uid == userId;
-        
+
         // Admin can read all sessions
         allow read: if request.auth != null && request.auth.token.email == 'patrickrife@gmail.com';
       }
     }
-    
+
     // Custom prompts (admin only for write, authenticated users can read)
     match /customPrompts/{promptId} {
       allow read: if request.auth != null;

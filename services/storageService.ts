@@ -22,6 +22,7 @@ const dataUrlToBlob = (dataUrl: string) => {
     return new Blob([bytes], { type: mimeType });
 };
 
+
 // --- UTILITY: Deep Sanitize ---
 // Firestore crashes if any field is 'undefined'. This recursively turns undefined -> null.
 const deepSanitize = (obj: any): any => {

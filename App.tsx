@@ -263,15 +263,26 @@ function App() {
       });
   };
 
-  const handleViewSession = (session: SessionRecord) => {
+  const handleViewSession = async (session: SessionRecord) => {
+    // Fetch fresh data from Firestore to get any updates (e.g., images uploaded after initial save)
+    let freshSession = session;
+    if (currentUser) {
+      const fetched = await storageService.getSession(currentUser.id, session.id);
+      if (fetched) {
+        freshSession = fetched;
+        // Update local cache too
+        updateLocalHistory(freshSession);
+      }
+    }
+
     setGeneratedResult({
-      transcription: session.transcription,
-      socialAssets: session.socialAssets,
-      newInsights: session.insights
+      transcription: freshSession.transcription,
+      socialAssets: freshSession.socialAssets,
+      newInsights: freshSession.insights
     });
     setRecordingBlob(null);
-    setCurrentVideoUrl(session.videoUrl || null);
-    setActiveSessionId(session.id);
+    setCurrentVideoUrl(freshSession.videoUrl || null);
+    setActiveSessionId(freshSession.id);
     setView(AppView.RESULTS);
   };
 

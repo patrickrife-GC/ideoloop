@@ -75,8 +75,9 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
   const connectAttemptRef = useRef(0);
   const isConnectedRef = useRef(false);
 
-  // Active voice config
-  const activeVoice = STYLES_CONFIG[interviewStyle].voice;
+  // Active voice config - fallback to WIN_OF_WEEK if style not found
+  const styleConfig = STYLES_CONFIG[interviewStyle] || STYLES_CONFIG['WIN_OF_WEEK'];
+  const activeVoice = styleConfig.voice;
 
   useEffect(() => {
     let cleanup = false;
@@ -118,10 +119,10 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
         try { if (inputCtx.state === 'suspended') await inputCtx.resume(); } catch(e) {}
         try { if (outputCtx.state === 'suspended') await outputCtx.resume(); } catch(e) {}
 
-        const styleConfig = STYLES_CONFIG[interviewStyle];
+        const innerStyleConfig = STYLES_CONFIG[interviewStyle] || STYLES_CONFIG['WIN_OF_WEEK'];
         
         // INJECT USER MEMORY & TOPIC
-        let dynamicSystemInstruction = styleConfig.system;
+        let dynamicSystemInstruction = innerStyleConfig.system;
         
         if (interviewTopic) {
             dynamicSystemInstruction += `\n\nCONTEXT: The user specifically wants to discuss "${interviewTopic}" within this framework.`;
@@ -149,7 +150,7 @@ export const Studio: React.FC<StudioProps> = ({ interviewStyle, interviewTopic, 
             ? "gpt-4o-realtime-preview-2024-12-17"
             : "gemini-2.5-flash-native-audio-preview-09-2025";
 
-        const liveVoice = aiLiveClient.providerId === "openai" ? "alloy" : styleConfig.voice;
+        const liveVoice = aiLiveClient.providerId === "openai" ? "alloy" : innerStyleConfig.voice;
 
         const sessionPromise = aiLiveClient.connectLiveAudio({
           model: liveModel,
